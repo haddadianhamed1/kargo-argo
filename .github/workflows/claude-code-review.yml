@@ -53,18 +53,39 @@ jobs:
 
         echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
 
+        # Validate PR_NUMBER is numeric (security fix)
+        if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+          echo "Error: PR_NUMBER must be a positive integer, got: $PR_NUMBER"
+          exit 1
+        fi
+
         # Get PR info via GitHub API if not from pull_request event
         if [ "${{ github.event_name }}" != "pull_request" ]; then
-          PR_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          # Safe API call with error handling
+          HTTP_STATUS=$(curl -s --max-time 30 -o /tmp/pr_data.json -w "%{http_code}" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
 
-          BASE_REF=$(echo "$PR_DATA" | jq -r .base.ref)
-          HEAD_SHA=$(echo "$PR_DATA" | jq -r .head.sha)
-          PR_TITLE=$(echo "$PR_DATA" | jq -r .title)
-          PR_BODY=$(echo "$PR_DATA" | jq -r .body)
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Error: GitHub API returned status $HTTP_STATUS"
+            cat /tmp/pr_data.json
+            exit 1
+          fi
 
-          # Checkout the PR branch
+          BASE_REF=$(jq -r '.base.ref // empty' /tmp/pr_data.json)
+          HEAD_SHA=$(jq -r '.head.sha // empty' /tmp/pr_data.json)
+          PR_TITLE=$(jq -r '.title // empty' /tmp/pr_data.json)
+          PR_BODY=$(jq -r '.body // empty' /tmp/pr_data.json)
+
+          # Validate required fields
+          if [ -z "$BASE_REF" ] || [ -z "$HEAD_SHA" ] || [ -z "$PR_TITLE" ]; then
+            echo "Error: Could not parse required PR data from API response"
+            exit 1
+          fi
+
+          # Checkout the PR branch with proper fetching
           git fetch origin pull/$PR_NUMBER/head:pr-branch
+          git fetch origin "$BASE_REF":"$BASE_REF"
           git checkout pr-branch
         else
           BASE_REF="${{ github.base_ref }}"
@@ -73,29 +94,46 @@ jobs:
           PR_BODY="${{ github.event.pull_request.body }}"
         fi
 
-        # Get the PR diff
-        git diff origin/$BASE_REF..HEAD > pr_diff.txt
+        # Get the PR diff (using local refs for security)
+        git diff "$BASE_REF"..HEAD > pr_diff.txt
 
         # Get list of changed files
-        git diff --name-only origin/$BASE_REF..HEAD > changed_files.txt
+        git diff --name-only "$BASE_REF"..HEAD > changed_files.txt
 
-        # Set PR details
-        echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
-        echo "PR_DESCRIPTION<<EOF" >> $GITHUB_OUTPUT
-        echo "$PR_BODY" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        # Set PR details safely (prevents shell injection)
+        printf 'PR_TITLE=%s\n' "$PR_TITLE" >> "$GITHUB_OUTPUT"
+        {
+          echo "PR_DESCRIPTION<<EOF"
+          printf '%s\n' "$PR_BODY"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Check commenter permissions
+      if: github.event_name == 'issue_comment'
+      uses: actions/github-script@v8
+      with:
+        script: |
+          const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            username: context.actor
+          });
+          if (!['admin', 'write', 'maintain'].includes(data.permission)) {
+            core.setFailed(`Insufficient permissions to trigger review. User ${context.actor} has ${data.permission} permission.`);
+          }
 
     - name: Acknowledge review request
       if: github.event_name == 'issue_comment'
       uses: actions/github-script@v8
       with:
         script: |
-          github.rest.issues.createComment({
+          const comment = await github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
             body: '🤖 **Claude Code Review Started**\n\nTriggered by comment request. Review will be posted shortly...'
           });
+          core.setOutput('comment_id', comment.data.id);
 
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -111,120 +149,14 @@ jobs:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         PR_NUMBER: ${{ steps.pr-info.outputs.PR_NUMBER }}
+        PR_TITLE: ${{ steps.pr-info.outputs.PR_TITLE }}
+        PR_DESCRIPTION: ${{ steps.pr-info.outputs.PR_DESCRIPTION }}
         REPO_OWNER: ${{ github.repository_owner }}
-        REPO_NAME: ${{ github.event.repository.name || 'kargo-argo' }}
+        REPO_NAME: ${{ github.event.repository.name }}
       run: |
-        cat << 'EOF' > claude_review.py
-        import os
-        import json
-        import requests
-        from anthropic import Anthropic
-
-        def get_claude_review(diff_content, changed_files, pr_title, pr_description):
-            """Get code review from Claude"""
-            client = Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
-
-            prompt = f"""You are an experienced code reviewer. Please review this pull request and provide constructive feedback.
-
-        **Pull Request Title:** {pr_title}
-
-        **Description:** {pr_description}
-
-        **Changed Files:** {changed_files}
-
-        **Code Diff:**
-        ```diff
-        {diff_content}
-        ```
-
-        Please provide a thorough code review focusing on:
-        1. Code quality and best practices
-        2. Security concerns
-        3. Performance considerations
-        4. Maintainability and readability
-        5. Potential bugs or issues
-        6. Suggestions for improvement
-
-        Format your review as markdown with clear sections. Be constructive and helpful. If the code looks good, say so and highlight what's done well.
-
-        Start your review with a brief summary, then provide detailed feedback organized by file or concern area."""
-
-            try:
-                response = client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=4000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                return response.content[0].text
-            except Exception as e:
-                return f"⚠️ Error getting Claude review: {str(e)}"
-
-        def post_github_comment(review_text, pr_number, repo_owner, repo_name, github_token):
-            """Post review as GitHub comment"""
-            url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/issues/{pr_number}/comments"
-
-            comment_body = f"""## 🤖 Claude Code Review
-
-        {review_text}
-
-        ---
-        *Automated review by Claude via GitHub Actions*
-        """
-
-            headers = {
-                'Authorization': f'token {github_token}',
-                'Accept': 'application/vnd.github.v3+json',
-            }
-
-            data = {'body': comment_body}
-
-            response = requests.post(url, headers=headers, data=json.dumps(data))
-            return response.status_code == 201
-
-        # Main execution
-        if __name__ == "__main__":
-            try:
-                # Read files
-                with open('pr_diff.txt', 'r') as f:
-                    diff_content = f.read()
-
-                with open('changed_files.txt', 'r') as f:
-                    changed_files = f.read()
-
-                pr_title = os.environ.get('PR_TITLE', 'No title')
-                pr_description = os.environ.get('PR_DESCRIPTION', 'No description')
-
-                # Skip if diff is too large (> 5000 lines to avoid API limits)
-                if len(diff_content.split('\n')) > 5000:
-                    review_text = "⚠️ **Pull request too large for automated review**\n\nThis PR contains too many changes for automated review. Please consider:\n1. Breaking it into smaller PRs\n2. Manual review by team members\n3. Focus on critical changes first"
-                else:
-                    # Get Claude's review
-                    print("Getting Claude review...")
-                    review_text = get_claude_review(diff_content, changed_files, pr_title, pr_description)
-
-                # Post to GitHub
-                success = post_github_comment(
-                    review_text,
-                    os.environ['PR_NUMBER'],
-                    os.environ['REPO_OWNER'],
-                    os.environ['REPO_NAME'],
-                    os.environ['GITHUB_TOKEN']
-                )
-
-                if success:
-                    print("✅ Claude review posted successfully!")
-                else:
-                    print("❌ Failed to post review")
-                    exit(1)
-
-            except Exception as e:
-                print(f"❌ Error: {str(e)}")
-                exit(1)
-        EOF
-
-        python claude_review.py
+        python3 .github/scripts/claude_review.py
 
     - name: Cleanup
       if: always()
       run: |
-        rm -f pr_diff.txt changed_files.txt claude_review.py
+        rm -f pr_diff.txt changed_files.txt /tmp/pr_data.json
