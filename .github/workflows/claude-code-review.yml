@@ -45,3 +45,6 @@ jobs:
 
         # Use sticky comments for updates (optional)
         use_sticky_comment: true
+
+        # Force review mode (optional)
+        prompt: "Please review this pull request for code quality, security, and best practices."
