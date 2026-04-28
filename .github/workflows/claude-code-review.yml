@@ -21,6 +21,7 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
+  id-token: write  # Required for OIDC token
 
 jobs:
   claude-review:
@@ -31,16 +32,16 @@ jobs:
       uses: anthropics/claude-code-action@v1
       with:
         # Your Anthropic API key (required)
-        anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+        anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
         # GitHub token for API access (optional, uses default if not provided)
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ secrets.GITHUB_TOKEN }}
 
-        # Model to use for review (optional, defaults to claude-3-5-sonnet)
-        model: claude-3-5-sonnet-20241022
+        # Trigger phrase for comments (optional)
+        trigger_phrase: "@claude"
 
-        # Maximum tokens for review (optional, defaults to 4000)
-        max-tokens: 4000
+        # Enable progress tracking (optional)
+        track_progress: true
 
-        # Enable code review mode (optional, defaults to true)
-        review-mode: true
+        # Use sticky comments for updates (optional)
+        use_sticky_comment: true
