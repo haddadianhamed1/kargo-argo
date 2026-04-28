@@ -4,63 +4,31 @@ This guide explains how to set up automated Terraform deployments using GitHub A
 
 ## Prerequisites
 
-### 1. AWS IAM Role for GitHub Actions (OIDC)
+### 1. AWS IAM User for GitHub Actions
 
-Create an IAM role that GitHub Actions can assume using OpenID Connect:
+Create an IAM user with programmatic access for GitHub Actions:
 
 ```bash
-# Create trust policy for GitHub OIDC
-cat > github-actions-trust-policy.json << EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:YOUR_USERNAME/kargo-argocd:ref:refs/heads/main"
-        }
-      }
-    }
-  ]
-}
-EOF
-
-# Create IAM role
-aws iam create-role \
-  --role-name GitHubActions-TerraformRole \
-  --assume-role-policy-document file://github-actions-trust-policy.json
+# Create IAM user
+aws iam create-user --user-name GitHubActions-TerraformUser
 
 # Attach necessary policies
-aws iam attach-role-policy \
-  --role-name GitHubActions-TerraformRole \
+aws iam attach-user-policy \
+  --user-name GitHubActions-TerraformUser \
   --policy-arn arn:aws:iam::aws:policy/PowerUserAccess
+
+# Create access keys
+aws iam create-access-key --user-name GitHubActions-TerraformUser
 ```
 
-### 2. GitHub OIDC Provider (if not exists)
+**Note the Access Key ID and Secret Access Key from the output.**
 
-```bash
-# Check if OIDC provider exists
-aws iam list-open-id-connect-providers
-
-# Create if it doesn't exist
-aws iam create-open-id-connect-provider \
-  --url https://token.actions.githubusercontent.com \
-  --client-id-list sts.amazonaws.com \
-  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
-```
-
-### 3. Repository Secrets
+### 2. Repository Secrets
 
 Add the following secrets to your GitHub repository:
 
-- `AWS_ROLE_ARN`: The ARN of the IAM role created above
-  - Example: `arn:aws:iam::123456789012:role/GitHubActions-TerraformRole`
+- `AWS_ACCESS_KEY_ID`: The access key ID from step 1
+- `AWS_SECRET_ACCESS_KEY`: The secret access key from step 1
 
 ## Workflow Features
 
@@ -86,7 +54,7 @@ The workflow supports multiple environments with separate state files:
 
 ### 🛡️ Security Features
 
-- **OIDC Authentication**: No long-lived AWS credentials
+- **IAM User Access**: Dedicated IAM user for GitHub Actions
 - **Environment Protection**: Apply/destroy requires environment approval
 - **State Locking**: DynamoDB prevents concurrent modifications
 - **Encrypted Storage**: S3 state encryption at rest
@@ -175,9 +143,10 @@ To add a new environment:
 
 ### Common Issues
 
-1. **OIDC Trust Policy**: Ensure repo path is correct
-2. **AWS Permissions**: Role needs VPC, EC2, and S3 permissions
+1. **Invalid Credentials**: Ensure AWS access keys are valid and not expired
+2. **AWS Permissions**: IAM user needs VPC, EC2, and S3 permissions
 3. **State Lock**: If locked, check DynamoDB table for stuck locks
+4. **Region Mismatch**: Ensure AWS region matches your configuration
 
 ### Terraform State Management
 
@@ -196,11 +165,13 @@ aws s3api list-object-versions \
 
 ## Security Best Practices
 
-1. **Least Privilege**: IAM role has only necessary permissions
-2. **Environment Protection**: Use GitHub environment protection rules
-3. **State Encryption**: S3 bucket encryption is enabled
-4. **Access Logging**: Enable CloudTrail for audit logs
-5. **Branch Protection**: Require PR reviews before merging
+1. **Least Privilege**: IAM user has only necessary permissions
+2. **Secure Secrets**: Store AWS credentials as GitHub repository secrets
+3. **Environment Protection**: Use GitHub environment protection rules
+4. **State Encryption**: S3 bucket encryption is enabled
+5. **Access Logging**: Enable CloudTrail for audit logs
+6. **Branch Protection**: Require PR reviews before merging
+7. **Key Rotation**: Regularly rotate AWS access keys
 
 ## Extending the Workflow
 

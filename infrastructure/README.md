@@ -47,8 +47,8 @@ infrastructure/
 
 **Automated deployment with S3 backend:**
 
-1. **Setup AWS OIDC Role** (see `GITHUB_ACTIONS_SETUP.md`)
-2. **Add GitHub Secrets**: `AWS_ROLE_ARN`
+1. **Create AWS IAM User** (see `GITHUB_ACTIONS_SETUP.md`)
+2. **Add GitHub Secrets**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
 3. **Push to trigger deployment**:
    ```bash
    git push origin main  # Auto-deploys to dev
