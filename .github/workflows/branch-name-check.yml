@@ -1,0 +1,109 @@
+name: Branch Name Check
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+    types: [ opened, synchronize, reopened ]
+
+jobs:
+  branch-name-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Check branch name
+      run: |
+        # Get the source branch name from the PR
+        BRANCH_NAME="${{ github.head_ref }}"
+        echo "Checking branch name: $BRANCH_NAME"
+
+        # Run the branch name validation script
+        python3 scripts/check_branch_name.py
+      env:
+        # Override the branch detection in the script
+        GITHUB_HEAD_REF: ${{ github.head_ref }}
+
+    - name: Comment on PR if branch name is invalid
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const branchName = context.payload.pull_request.head.ref;
+          const comment = `## ❌ Invalid Branch Name
+
+          The branch name \`${branchName}\` doesn't follow our naming conventions.
+
+          **Allowed patterns:**
+          - \`feature/description\` (e.g., \`feature/add-authentication\`)
+          - \`bugfix/description\` (e.g., \`bugfix/fix-login-error\`)
+          - \`hotfix/description\` (e.g., \`hotfix/security-patch\`)
+          - \`release/version\` (e.g., \`release/v1.2.0\`)
+
+          Please rename your branch to follow these conventions:
+          \`\`\`bash
+          git branch -m ${branchName} feature/your-description
+          git push origin -u feature/your-description
+          \`\`\`
+
+          Then update this PR to use the new branch name.`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  commit-message-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Check commit messages
+      run: |
+        # Check commits in this PR
+        BASE_SHA="${{ github.event.pull_request.base.sha }}"
+        HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+        echo "Checking commits from $BASE_SHA to $HEAD_SHA"
+
+        # Get commit messages for commits in this PR
+        COMMITS=$(git rev-list --reverse $BASE_SHA..$HEAD_SHA)
+
+        EXIT_CODE=0
+        for commit in $COMMITS; do
+          echo "Checking commit: $commit"
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s" $commit)
+          echo "Commit message: $COMMIT_MSG"
+
+          # Create temporary file with commit message
+          echo "$COMMIT_MSG" > temp_commit_msg.txt
+
+          # Run validation
+          if ! python3 scripts/check_commit_msg.py temp_commit_msg.txt; then
+            echo "❌ Invalid commit message in $commit"
+            EXIT_CODE=1
+          else
+            echo "✅ Valid commit message in $commit"
+          fi
+
+          rm temp_commit_msg.txt
+        done
+
+        exit $EXIT_CODE

@@ -1,0 +1,40 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-branch-name
+        name: Check branch name
+        entry: python3 scripts/check_branch_name.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: check-commit-msg
+        name: Check commit message
+        entry: python3 scripts/check_commit_msg.py
+        language: system
+        stages: [commit-msg]
+        pass_filenames: true
+        always_run: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3
+        files: ^applications/.*\.py$
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+        files: ^applications/.*\.py$
+        args: [--max-line-length=88]
