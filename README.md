@@ -29,7 +29,7 @@ kargo-argocd/
 │   ├── pull_request_template.md  # PR template
 │   └── workflows/
 │       ├── branch-name-check.yml     # Branch/commit validation
-│       └── claude-code-review.yml    # AI code review workflow
+│       └── claude-code-review.yml    # Official Anthropic Claude Code Action
 ├── .pre-commit-config.yaml   # Pre-commit hooks
 └── CLAUDE.md                # Development documentation
 ```
@@ -136,14 +136,14 @@ chore: update dependencies
 
 ### AI-Powered Code Reviews
 
-**Claude Automated Reviews** on every pull request:
+**Official Anthropic Claude Code Action** with enterprise capabilities:
 
-- ✅ **Code Quality Analysis** - Best practices and patterns
-- ✅ **Security Assessment** - Vulnerability detection
-- ✅ **Performance Review** - Optimization opportunities
-- ✅ **Maintainability Check** - Readability and structure
-- ✅ **Bug Detection** - Potential issues identification
-- ✅ **Constructive Feedback** - Actionable improvement suggestions
+- ✅ **Interactive Assistant** - Responds to @claude mentions in PRs and issues
+- ✅ **Smart Code Analysis** - Advanced security, performance, and quality review
+- ✅ **Code Implementation** - Can suggest and implement code changes directly
+- ✅ **Real-time Feedback** - Sticky comments with progress tracking
+- ✅ **Multi-trigger Support** - Automatic, manual, and comment-based triggers
+- ✅ **Enterprise Security** - Official Anthropic maintenance and support
 
 ### Pre-commit Hooks
 
@@ -162,6 +162,31 @@ Automated validation on pull requests:
 - Branch name validation
 - Commit message validation
 - Automated PR commenting for violations
+
+### Claude AI Interaction
+
+**Interactive Code Reviews** with @claude mentions:
+
+```bash
+# Trigger Claude code review
+@claude please review this PR for security issues
+
+# Ask for specific help
+@claude can you help optimize this function?
+
+# Request implementation assistance
+@claude implement error handling for this API endpoint
+
+# Get code explanations
+@claude explain how this authentication flow works
+```
+
+**Claude can:**
+- ✅ **Review Code** - Comprehensive analysis and feedback
+- ✅ **Suggest Improvements** - Specific optimization recommendations
+- ✅ **Implement Code** - Write and modify code directly
+- ✅ **Answer Questions** - Explain complex logic and patterns
+- ✅ **Debug Issues** - Help identify and resolve problems
 
 ### Testing Pre-commit Hooks
 
