@@ -38,6 +38,8 @@ jobs:
       uses: actions/checkout@v5
       with:
         fetch-depth: 0
+        # Fetch all branches and tags
+        ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
 
     - name: Get PR diff and files
       id: pr-info
@@ -83,22 +85,34 @@ jobs:
             exit 1
           fi
 
-          # Checkout the PR branch with proper fetching
-          git fetch origin pull/$PR_NUMBER/head:pr-branch
-          git fetch origin "$BASE_REF":"$BASE_REF"
-          git checkout pr-branch
+          # Fetch required refs properly
+          echo "Fetching PR $PR_NUMBER and base branch $BASE_REF"
+          git fetch origin pull/$PR_NUMBER/head:pr-$PR_NUMBER
+          git fetch origin "$BASE_REF":refs/remotes/origin/"$BASE_REF"
+
+          # Checkout the PR branch
+          git checkout pr-$PR_NUMBER
+
+          # Set up comparison refs
+          BASE_SHA=$(git rev-parse "refs/remotes/origin/$BASE_REF")
+          HEAD_SHA=$(git rev-parse HEAD)
         else
           BASE_REF="${{ github.base_ref }}"
           HEAD_SHA="${{ github.sha }}"
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_BODY="${{ github.event.pull_request.body }}"
+
+          # Ensure base ref is available
+          git fetch origin "$BASE_REF":refs/remotes/origin/"$BASE_REF"
+          BASE_SHA=$(git rev-parse "refs/remotes/origin/$BASE_REF")
         fi
 
-        # Get the PR diff (using local refs for security)
-        git diff "$BASE_REF"..HEAD > pr_diff.txt
+        # Get the PR diff using commit SHAs for reliability
+        echo "Comparing $BASE_SHA..$HEAD_SHA"
+        git diff "$BASE_SHA".."$HEAD_SHA" > pr_diff.txt
 
         # Get list of changed files
-        git diff --name-only "$BASE_REF"..HEAD > changed_files.txt
+        git diff --name-only "$BASE_SHA".."$HEAD_SHA" > changed_files.txt
 
         # Set PR details safely (prevents shell injection)
         printf 'PR_TITLE=%s\n' "$PR_TITLE" >> "$GITHUB_OUTPUT"
