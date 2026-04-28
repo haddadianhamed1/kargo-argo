@@ -10,10 +10,10 @@ on:
     inputs:
       pr_number:
         description: 'PR number to review'
-        required: true
+        required: false
         type: string
 
-  # Comment trigger (type `/review` in PR comment)
+  # Comment trigger (@claude mentions)
   issue_comment:
     types: [ created ]
 
@@ -25,152 +25,22 @@ permissions:
 jobs:
   claude-review:
     runs-on: ubuntu-latest
-    # Only run if it's a PR event, manual dispatch, or `/review` comment
-    if: |
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request != null &&
-       contains(github.event.comment.body, '/review'))
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-      with:
-        fetch-depth: 0
-        # Fetch all branches and tags
-        ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
-
-    - name: Get PR diff and files
-      id: pr-info
-      run: |
-        # Determine PR number based on trigger type
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          PR_NUMBER="${{ github.event.inputs.pr_number }}"
-        elif [ "${{ github.event_name }}" = "issue_comment" ]; then
-          PR_NUMBER="${{ github.event.issue.number }}"
-        else
-          PR_NUMBER="${{ github.event.number }}"
-        fi
-
-        echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
-
-        # Validate PR_NUMBER is numeric (security fix)
-        if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
-          echo "Error: PR_NUMBER must be a positive integer, got: $PR_NUMBER"
-          exit 1
-        fi
-
-        # Get PR info via GitHub API if not from pull_request event
-        if [ "${{ github.event_name }}" != "pull_request" ]; then
-          # Safe API call with error handling
-          HTTP_STATUS=$(curl -s --max-time 30 -o /tmp/pr_data.json -w "%{http_code}" \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
-
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "Error: GitHub API returned status $HTTP_STATUS"
-            cat /tmp/pr_data.json
-            exit 1
-          fi
-
-          BASE_REF=$(jq -r '.base.ref // empty' /tmp/pr_data.json)
-          HEAD_SHA=$(jq -r '.head.sha // empty' /tmp/pr_data.json)
-          PR_TITLE=$(jq -r '.title // empty' /tmp/pr_data.json)
-          PR_BODY=$(jq -r '.body // empty' /tmp/pr_data.json)
-
-          # Validate required fields
-          if [ -z "$BASE_REF" ] || [ -z "$HEAD_SHA" ] || [ -z "$PR_TITLE" ]; then
-            echo "Error: Could not parse required PR data from API response"
-            exit 1
-          fi
-
-          # Fetch required refs properly
-          echo "Fetching PR $PR_NUMBER and base branch $BASE_REF"
-          git fetch origin pull/$PR_NUMBER/head:pr-$PR_NUMBER
-          git fetch origin "$BASE_REF":refs/remotes/origin/"$BASE_REF"
-
-          # Checkout the PR branch
-          git checkout pr-$PR_NUMBER
-
-          # Set up comparison refs
-          BASE_SHA=$(git rev-parse "refs/remotes/origin/$BASE_REF")
-          HEAD_SHA=$(git rev-parse HEAD)
-        else
-          BASE_REF="${{ github.base_ref }}"
-          HEAD_SHA="${{ github.sha }}"
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          PR_BODY="${{ github.event.pull_request.body }}"
-
-          # Ensure base ref is available
-          git fetch origin "$BASE_REF":refs/remotes/origin/"$BASE_REF"
-          BASE_SHA=$(git rev-parse "refs/remotes/origin/$BASE_REF")
-        fi
-
-        # Get the PR diff using commit SHAs for reliability
-        echo "Comparing $BASE_SHA..$HEAD_SHA"
-        git diff "$BASE_SHA".."$HEAD_SHA" > pr_diff.txt
-
-        # Get list of changed files
-        git diff --name-only "$BASE_SHA".."$HEAD_SHA" > changed_files.txt
-
-        # Set PR details safely (prevents shell injection)
-        printf 'PR_TITLE=%s\n' "$PR_TITLE" >> "$GITHUB_OUTPUT"
-        {
-          echo "PR_DESCRIPTION<<EOF"
-          printf '%s\n' "$PR_BODY"
-          echo "EOF"
-        } >> "$GITHUB_OUTPUT"
-
-    - name: Check commenter permissions
-      if: github.event_name == 'issue_comment'
-      uses: actions/github-script@v8
-      with:
-        script: |
-          const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            username: context.actor
-          });
-          if (!['admin', 'write', 'maintain'].includes(data.permission)) {
-            core.setFailed(`Insufficient permissions to trigger review. User ${context.actor} has ${data.permission} permission.`);
-          }
-
-    - name: Acknowledge review request
-      if: github.event_name == 'issue_comment'
-      uses: actions/github-script@v8
-      with:
-        script: |
-          const comment = await github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: '🤖 **Claude Code Review Started**\n\nTriggered by comment request. Review will be posted shortly...'
-          });
-          core.setOutput('comment_id', comment.data.id);
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
-      run: |
-        pip install anthropic requests
-
     - name: Claude Code Review
-      env:
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        PR_NUMBER: ${{ steps.pr-info.outputs.PR_NUMBER }}
-        PR_TITLE: ${{ steps.pr-info.outputs.PR_TITLE }}
-        PR_DESCRIPTION: ${{ steps.pr-info.outputs.PR_DESCRIPTION }}
-        REPO_OWNER: ${{ github.repository_owner }}
-        REPO_NAME: ${{ github.event.repository.name }}
-      run: |
-        python3 .github/scripts/claude_review.py
+      uses: anthropics/claude-code-action@v1
+      with:
+        # Your Anthropic API key (required)
+        anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
-    - name: Cleanup
-      if: always()
-      run: |
-        rm -f pr_diff.txt changed_files.txt /tmp/pr_data.json
+        # GitHub token for API access (optional, uses default if not provided)
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+        # Model to use for review (optional, defaults to claude-3-5-sonnet)
+        model: claude-3-5-sonnet-20241022
+
+        # Maximum tokens for review (optional, defaults to 4000)
+        max-tokens: 4000
+
+        # Enable code review mode (optional, defaults to true)
+        review-mode: true
