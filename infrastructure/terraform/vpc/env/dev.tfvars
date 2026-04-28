@@ -27,8 +27,6 @@ single_nat_gateway      = true
 # Environment-specific settings
 environment_config = {
   instance_tenancy     = "default"
-  enable_flow_logs     = false  # Disable for cost savings in dev
-  flow_logs_retention  = 3      # Shorter retention in dev
   enable_vpc_endpoints = false  # Disable for cost savings in dev
 }
 

@@ -27,8 +27,6 @@ single_nat_gateway      = false  # Multiple NAT Gateways for HA
 # Environment-specific settings
 environment_config = {
   instance_tenancy     = "default"
-  enable_flow_logs     = true
-  flow_logs_retention  = 14    # Longer retention for staging
   enable_vpc_endpoints = true  # Enable for better performance
 }
 

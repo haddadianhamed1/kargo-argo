@@ -113,7 +113,6 @@ output "availability_zones" {
 output "common_tags" {
   description = "Common tags applied to all resources"
   value       = local.common_tags
-  sensitive   = false
 }
 
 # Kubernetes-specific outputs
@@ -130,14 +129,14 @@ output "kubernetes_tags" {
 output "vpc_summary" {
   description = "Summary of the VPC configuration"
   value = {
-    vpc_id              = module.vpc.vpc_id
-    vpc_cidr            = module.vpc.vpc_cidr_block
-    environment         = var.environment
-    region              = var.aws_region
-    public_subnets      = length(module.public_subnets.public_subnet_ids)
-    private_subnets     = length(module.private_subnets.private_subnet_ids)
-    availability_zones  = length(slice(data.aws_availability_zones.available.names, 0, max(var.public_subnet_count, var.private_subnet_count)))
-    kubernetes_ready    = true
+    vpc_id                = module.vpc.vpc_id
+    vpc_cidr              = module.vpc.vpc_cidr_block
+    environment           = var.environment
+    region                = var.aws_region
+    public_subnets        = length(module.public_subnets.public_subnet_ids)
+    private_subnets       = length(module.private_subnets.private_subnet_ids)
+    availability_zones    = length(slice(data.aws_availability_zones.available.names, 0, max(var.public_subnet_count, var.private_subnet_count)))
+    vpc_endpoints_enabled = var.environment_config.enable_vpc_endpoints
   }
 }
 
@@ -145,25 +144,24 @@ output "vpc_summary" {
 output "eks_cluster_config" {
   description = "Configuration values needed for EKS cluster deployment"
   value = {
-    vpc_id                     = module.vpc.vpc_id
-    private_subnet_ids         = module.private_subnets.private_subnet_ids
-    public_subnet_ids          = module.public_subnets.public_subnet_ids
-    cluster_security_group_id  = aws_security_group.kubernetes_cluster.id
+    vpc_id                    = module.vpc.vpc_id
+    private_subnet_ids        = module.private_subnets.private_subnet_ids
+    public_subnet_ids         = module.public_subnets.public_subnet_ids
+    cluster_security_group_id = aws_security_group.kubernetes_cluster.id
     cluster_name              = local.cluster_name
-    cluster_endpoint_access   = {
+    cluster_endpoint_access = {
       private_access = true
       public_access  = true
       public_cidrs   = ["0.0.0.0/0"]
     }
   }
-  sensitive = false
 }
 
 # Remote state data source for cross-module consumption
 # This output enables other modules to reference this VPC infrastructure
 output "remote_state_key" {
   description = "S3 key for remote state - use this in data.terraform_remote_state"
-  value       = "terraform/vpc/terraform.tfstate"
+  value       = "terraform/vpc/${var.environment}/terraform.tfstate"
 }
 
 output "remote_state_config" {
@@ -172,7 +170,7 @@ output "remote_state_config" {
     backend = "s3"
     config = {
       bucket = "github-actions-kargo-argocd"
-      key    = "terraform/vpc/terraform.tfstate"
+      key    = "terraform/vpc/${var.environment}/terraform.tfstate"
       region = var.aws_region
     }
   }

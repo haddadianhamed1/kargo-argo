@@ -8,10 +8,11 @@ terraform {
     }
   }
 
-  # S3 backend for remote state management
+  # S3 backend for remote state management (no state locking)
   # Configuration is completed via backend-config in GitHub Actions
   # or via terraform init -backend-config flags
   backend "s3" {
     encrypt = true
+    # Note: No DynamoDB state locking configured
   }
 }

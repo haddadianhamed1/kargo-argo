@@ -42,10 +42,10 @@ locals {
     module.label.tags,
     {
       "kubernetes.io/cluster/${local.cluster_name}" = "shared"
-      "Environment"                                  = var.environment
-      "Project"                                      = var.project_name
-      "ManagedBy"                                    = "terraform"
-      "Owner"                                        = var.owner
+      "Environment"                                 = var.environment
+      "Project"                                     = var.project_name
+      "ManagedBy"                                   = "terraform"
+      "Owner"                                       = var.owner
     }
   )
 
@@ -57,10 +57,6 @@ locals {
   kubernetes_private_tags = {
     "kubernetes.io/role/internal-elb" = "1"
   }
-
-  # Calculate CIDR blocks for subnets
-  public_subnet_cidrs  = [for i in range(var.public_subnet_count) : cidrsubnet(var.vpc_cidr, var.subnet_cidr_newbits, i)]
-  private_subnet_cidrs = [for i in range(var.private_subnet_count) : cidrsubnet(var.vpc_cidr, var.subnet_cidr_newbits, i + var.public_subnet_count)]
 }
 
 # CloudPosse VPC Module
@@ -79,10 +75,8 @@ module "vpc" {
   assign_generated_ipv6_cidr_block = var.enable_ipv6
 
   # DNS settings
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-
-  tags = local.common_tags
+  dns_hostnames_enabled = true
+  dns_support_enabled   = true
 }
 
 # CloudPosse Public Subnets Module
@@ -97,11 +91,15 @@ module "public_subnets" {
   attributes  = module.label.attributes
   delimiter   = module.label.delimiter
 
-  vpc_id               = module.vpc.vpc_id
-  igw_id               = [module.vpc.igw_id]
-  availability_zones   = slice(data.aws_availability_zones.available.names, 0, var.public_subnet_count)
-  cidr_block           = var.vpc_cidr
-  public_subnets_only  = true
+  vpc_id             = module.vpc.vpc_id
+  igw_id             = [module.vpc.igw_id]
+  availability_zones = slice(data.aws_availability_zones.available.names, 0, var.public_subnet_count)
+
+  # Public subnet configuration
+  public_subnets_enabled  = true
+  private_subnets_enabled = false
+  nat_gateway_enabled     = false
+  nat_instance_enabled    = false
 
   tags = merge(
     local.common_tags,
@@ -127,8 +125,12 @@ module "private_subnets" {
   vpc_id             = module.vpc.vpc_id
   igw_id             = [module.vpc.igw_id]
   availability_zones = slice(data.aws_availability_zones.available.names, 0, var.private_subnet_count)
-  cidr_block         = var.vpc_cidr
-  private_subnets_only = true
+
+  # Private subnet configuration
+  public_subnets_enabled  = false
+  private_subnets_enabled = true
+  nat_gateway_enabled     = var.enable_nat_gateway
+  nat_instance_enabled    = false
 
   tags = merge(
     local.common_tags,
@@ -190,4 +192,36 @@ resource "aws_security_group" "kubernetes_cluster" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+# VPC Endpoints (conditional based on environment_config)
+resource "aws_vpc_endpoint" "s3" {
+  count = var.environment_config.enable_vpc_endpoints ? 1 : 0
+
+  vpc_id       = module.vpc.vpc_id
+  service_name = "com.amazonaws.${var.aws_region}.s3"
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${module.label.id}-s3-endpoint"
+    }
+  )
+}
+
+resource "aws_vpc_endpoint" "ec2" {
+  count = var.environment_config.enable_vpc_endpoints ? 1 : 0
+
+  vpc_id             = module.vpc.vpc_id
+  service_name       = "com.amazonaws.${var.aws_region}.ec2"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = module.private_subnets.private_subnet_ids
+  security_group_ids = [aws_security_group.kubernetes_cluster.id]
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${module.label.id}-ec2-endpoint"
+    }
+  )
 }

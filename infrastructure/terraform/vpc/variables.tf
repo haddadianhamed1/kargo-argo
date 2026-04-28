@@ -131,14 +131,10 @@ variable "environment_config" {
   description = "Environment-specific configuration"
   type = object({
     instance_tenancy     = optional(string, "default")
-    enable_flow_logs     = optional(bool, true)
-    flow_logs_retention  = optional(number, 7)
     enable_vpc_endpoints = optional(bool, false)
   })
   default = {
     instance_tenancy     = "default"
-    enable_flow_logs     = true
-    flow_logs_retention  = 7
     enable_vpc_endpoints = false
   }
 }

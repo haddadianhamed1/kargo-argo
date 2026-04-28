@@ -96,14 +96,13 @@ terraform apply -var-file="env/stg.tfvars"
 - **VPC CIDR**: `10.10.0.0/16`
 - **Subnets**: 1 public, 1 private
 - **NAT Gateway**: Single (cost-optimized)
-- **Flow Logs**: Disabled (cost-optimized)
+- **VPC Endpoints**: Disabled (cost-optimized)
 - **Auto-shutdown**: Enabled
 
 ### Staging (`stg.tfvars`)
 - **VPC CIDR**: `10.20.0.0/16`
 - **Subnets**: 2 public, 2 private (Multi-AZ)
 - **NAT Gateway**: Multiple (high availability)
-- **Flow Logs**: Enabled
 - **VPC Endpoints**: Enabled
 
 ## 📊 Key Outputs

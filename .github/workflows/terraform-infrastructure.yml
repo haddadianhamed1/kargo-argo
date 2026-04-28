@@ -36,7 +36,6 @@ env:
   TF_VERSION: '1.5.7'
   AWS_REGION: 'us-east-1'
   S3_BUCKET: 'github-actions-kargo-argocd'
-  DYNAMODB_TABLE: 'terraform-state-lock'
 
 permissions:
   contents: read
@@ -73,16 +72,7 @@ jobs:
             BUCKET_EXISTS=false
           fi
 
-          # Check if DynamoDB table exists
-          if aws dynamodb describe-table --table-name "$DYNAMODB_TABLE" 2>/dev/null; then
-            echo "✅ DynamoDB table exists"
-            TABLE_EXISTS=true
-          else
-            echo "❌ DynamoDB table does not exist"
-            TABLE_EXISTS=false
-          fi
-
-          if [ "$BUCKET_EXISTS" = true ] && [ "$TABLE_EXISTS" = true ]; then
+          if [ "$BUCKET_EXISTS" = true ]; then
             echo "configured=true" >> $GITHUB_OUTPUT
           else
             echo "configured=false" >> $GITHUB_OUTPUT
@@ -112,7 +102,7 @@ jobs:
                     "ApplyServerSideEncryptionByDefault": {
                       "SSEAlgorithm": "AES256"
                     },
-                    "BucketKeyEnabled": false
+                    "BucketKeyEnabled": true
                   }
                 ]
               }'
@@ -126,27 +116,13 @@ jobs:
             echo "✅ S3 bucket configured"
           fi
 
-          # Create DynamoDB table
-          if ! aws dynamodb describe-table --table-name "$DYNAMODB_TABLE" 2>/dev/null; then
-            aws dynamodb create-table \
-              --table-name "$DYNAMODB_TABLE" \
-              --attribute-definitions AttributeName=LockID,AttributeType=S \
-              --key-schema AttributeName=LockID,KeyType=HASH \
-              --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
-              --region "$AWS_REGION"
-
-            # Wait for table to be active
-            aws dynamodb wait table-exists --table-name "$DYNAMODB_TABLE" --region "$AWS_REGION"
-            echo "✅ DynamoDB table created"
-          fi
-
   terraform-plan:
     name: 'Terraform Plan'
     needs: setup-backend
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        environment: [dev, stg]
+        environment: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.environment)) || fromJSON('["dev", "stg"]') }}
 
     steps:
       - name: Checkout
@@ -170,8 +146,7 @@ jobs:
           terraform init \
             -backend-config="bucket=$S3_BUCKET" \
             -backend-config="key=terraform/vpc/${{ matrix.environment }}/terraform.tfstate" \
-            -backend-config="region=$AWS_REGION" \
-            -backend-config="dynamodb_table=$DYNAMODB_TABLE"
+            -backend-config="region=$AWS_REGION"
 
       - name: Terraform Validate
         working-directory: ./infrastructure/terraform/vpc
