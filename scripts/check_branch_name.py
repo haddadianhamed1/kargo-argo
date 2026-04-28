@@ -4,6 +4,7 @@ Branch name validation script for pre-commit hooks.
 Ensures branch names follow conventional naming patterns.
 """
 
+import os
 import re
 import subprocess
 import sys
@@ -12,6 +13,12 @@ from typing import List
 
 def get_current_branch() -> str:
     """Get the current git branch name."""
+    # First check if we're in GitHub Actions
+    github_head_ref = os.environ.get('GITHUB_HEAD_REF')
+    if github_head_ref:
+        return github_head_ref
+
+    # Fallback to git command for local development
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
