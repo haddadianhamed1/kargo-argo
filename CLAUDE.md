@@ -91,25 +91,37 @@ docs: update README
 
 ### Claude AI Code Review
 
-**Automated AI-powered code reviews** on every pull request via `.github/workflows/claude-code-review.yml`:
+**Official Anthropic Claude Code Action** for automated code reviews via `.github/workflows/claude-code-review.yml`:
 
-**Review Coverage:**
-- **Code Quality**: Best practices, patterns, and maintainability
-- **Security Analysis**: Vulnerability detection and security concerns
-- **Performance**: Optimization opportunities and efficiency improvements
-- **Bug Detection**: Potential issues and edge cases
-- **Documentation**: Code clarity and commenting suggestions
-- **Architecture**: Design patterns and structural improvements
+**Enterprise Features:**
+- **Intelligent Detection**: Auto-responds to @claude mentions in PRs and issues
+- **Code Review & Analysis**: Comprehensive security, performance, and quality analysis
+- **Code Implementation**: Can suggest and implement code changes directly
+- **Interactive Assistant**: Responds to questions and requests in comments
+- **Progress Tracking**: Visual progress indicators for long-running tasks
+- **Multi-Trigger Support**: Automatic, manual, and @claude comment triggers
+
+**Advanced Capabilities:**
+- **Smart Context**: Understands project structure and codebase patterns
+- **Security Focus**: Identifies vulnerabilities and security concerns
+- **Performance Optimization**: Suggests efficiency improvements
+- **Best Practices**: Enforces coding standards and conventions
+- **Documentation**: Improves code clarity and commenting
+- **Architecture Guidance**: Recommends design pattern improvements
 
 **Configuration:**
-- **Model**: Claude 3.5 Sonnet for comprehensive analysis
-- **Trigger**: Automatic on PR creation and updates
-- **Output**: Detailed markdown comments with actionable feedback
-- **Cost Control**: Skips reviews for PRs larger than 5000 lines
+- **Official Action**: `anthropics/claude-code-action@v1`
+- **Model**: Latest Claude 3.5 Sonnet with continuous updates
+- **Triggers**:
+  - Automatic: PR creation and updates
+  - Manual: GitHub Actions workflow dispatch
+  - Interactive: @claude mentions in comments
+- **Output**: Smart sticky comments with real-time updates
 
 **Setup Requirements:**
 - `ANTHROPIC_API_KEY` secret configured in repository settings
-- Proper GitHub permissions for PR commenting
+- `id-token: write` permission for OIDC authentication
+- Maintained and supported by Anthropic team
 
 ### Pull Request Process
 
