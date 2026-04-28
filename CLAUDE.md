@@ -19,7 +19,8 @@ kargo-argocd/
 ├── .github/                  # GitHub templates and workflows
 │   ├── pull_request_template.md  # PR template
 │   └── workflows/
-│       └── branch-name-check.yml  # Branch/commit validation workflow
+│       ├── branch-name-check.yml     # Branch/commit validation workflow
+│       └── claude-code-review.yml    # AI-powered code review workflow
 ├── .pre-commit-config.yaml   # Pre-commit hooks configuration
 └── CLAUDE.md                 # This file - repository documentation
 ```
@@ -87,6 +88,28 @@ docs: update README
 - **Pre-commit hooks**: Validate branch names, commit messages, and code formatting
 - **GitHub Actions**: Automated validation on pull requests
 - **Code formatting**: Black and Flake8 for Python code consistency
+
+### Claude AI Code Review
+
+**Automated AI-powered code reviews** on every pull request via `.github/workflows/claude-code-review.yml`:
+
+**Review Coverage:**
+- **Code Quality**: Best practices, patterns, and maintainability
+- **Security Analysis**: Vulnerability detection and security concerns
+- **Performance**: Optimization opportunities and efficiency improvements
+- **Bug Detection**: Potential issues and edge cases
+- **Documentation**: Code clarity and commenting suggestions
+- **Architecture**: Design patterns and structural improvements
+
+**Configuration:**
+- **Model**: Claude 3.5 Sonnet for comprehensive analysis
+- **Trigger**: Automatic on PR creation and updates
+- **Output**: Detailed markdown comments with actionable feedback
+- **Cost Control**: Skips reviews for PRs larger than 5000 lines
+
+**Setup Requirements:**
+- `ANTHROPIC_API_KEY` secret configured in repository settings
+- Proper GitHub permissions for PR commenting
 
 ### Pull Request Process
 

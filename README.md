@@ -8,6 +8,7 @@ This repository demonstrates a complete SDLC pipeline with:
 
 - **FastAPI Web Service** - RESTful API with containerization
 - **Automated Code Quality** - Pre-commit hooks and validation
+- **AI-Powered Code Reviews** - Claude automatically reviews all pull requests
 - **Standardized Workflows** - Branch naming and commit conventions
 - **CI/CD Integration** - GitHub Actions for automated validation
 - **Developer Experience** - Comprehensive tooling and documentation
@@ -27,7 +28,8 @@ kargo-argocd/
 ├── .github/                  # GitHub integration
 │   ├── pull_request_template.md  # PR template
 │   └── workflows/
-│       └── branch-name-check.yml  # Validation workflow
+│       ├── branch-name-check.yml     # Branch/commit validation
+│       └── claude-code-review.yml    # AI code review workflow
 ├── .pre-commit-config.yaml   # Pre-commit hooks
 └── CLAUDE.md                # Development documentation
 ```
@@ -131,6 +133,17 @@ chore: update dependencies
    - Review approval required
 
 ## 🛡️ Quality Assurance
+
+### AI-Powered Code Reviews
+
+**Claude Automated Reviews** on every pull request:
+
+- ✅ **Code Quality Analysis** - Best practices and patterns
+- ✅ **Security Assessment** - Vulnerability detection
+- ✅ **Performance Review** - Optimization opportunities
+- ✅ **Maintainability Check** - Readability and structure
+- ✅ **Bug Detection** - Potential issues identification
+- ✅ **Constructive Feedback** - Actionable improvement suggestions
 
 ### Pre-commit Hooks
 
