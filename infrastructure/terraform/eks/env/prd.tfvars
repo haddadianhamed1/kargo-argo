@@ -17,7 +17,7 @@ kubernetes_version = "1.28"
 # Endpoint access configuration (secure for production)
 cluster_endpoint_private_access      = true
 cluster_endpoint_public_access       = true
-cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+cluster_endpoint_public_access_cidrs = ["24.130.139.84/32"]
 
 # Logging configuration (comprehensive for production)
 enabled_cluster_log_types    = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
