@@ -72,7 +72,7 @@ module "eks_cluster" {
   # Endpoint configuration
   endpoint_private_access = var.cluster_endpoint_private_access
   endpoint_public_access  = var.cluster_endpoint_public_access
-  public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
+  public_access_cidrs     = local.dynamic_public_access_cidrs
 
   # Logging configuration
   enabled_cluster_log_types    = var.enabled_cluster_log_types
