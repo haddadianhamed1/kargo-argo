@@ -13,6 +13,11 @@ def get_hiv2():
     return "hiv2"
 
 
+@app.get("/hamed")
+def get_hamed():
+    return "hamed"
+
+
 if __name__ == "__main__":
     import uvicorn
 
