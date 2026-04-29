@@ -17,7 +17,14 @@ kubernetes_version = "1.34"
 # Endpoint access configuration (more open for development)
 cluster_endpoint_private_access      = true
 cluster_endpoint_public_access       = true
-cluster_endpoint_public_access_cidrs = ["24.130.139.84/32"]
+cluster_endpoint_public_access_cidrs = [
+  "24.130.139.84/32",    # User access
+  "4.0.0.0/8",           # GitHub Actions core range
+  "13.64.0.0/12",        # GitHub Actions Azure East US ranges
+  "20.0.0.0/8",          # GitHub Actions Azure core ranges
+  "40.64.0.0/10",        # GitHub Actions Azure West ranges
+  "52.224.0.0/11"        # GitHub Actions Azure Central ranges
+]
 
 # Logging configuration (basic for cost optimization)
 enabled_cluster_log_types    = ["api", "audit"]
