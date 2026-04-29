@@ -51,5 +51,5 @@ jobs:
         # Faster execution - disable sticky comments
         use_sticky_comment: false
 
-        # Minimal review - no deep analysis
-        prompt: "Check for obvious errors only. Be brief."
+        # Always provide feedback
+        prompt: "Review briefly and always leave a short summary comment, even if everything looks good."
