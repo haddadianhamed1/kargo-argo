@@ -12,7 +12,7 @@ project_name = "Kargo ArgoCD Development"
 owner        = "Platform Team"
 
 # EKS Cluster Configuration
-kubernetes_version = "1.28"
+kubernetes_version = "1.34"
 
 # Endpoint access configuration (more open for development)
 cluster_endpoint_private_access      = true
