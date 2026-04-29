@@ -161,7 +161,7 @@ jobs:
             HAS_CHANGES="false"
 
             for file in $CHANGED_FILES; do
-              if [[ $file == infrastructure/terraform/*/*.tf ]]; then
+              if [[ $file == infrastructure/terraform/*/*.tf ]] || [[ $file == infrastructure/terraform/*/env/*.tfvars ]]; then
                 MODULE_DIR=$(echo $file | cut -d'/' -f1-3)
                 MODULE_NAME=$(basename $MODULE_DIR)
                 if [[ ! $CHANGED_MODULES =~ $MODULE_NAME ]]; then
