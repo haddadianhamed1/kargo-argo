@@ -1,0 +1,15 @@
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: dev
+  namespace: kargo-argocd
+spec:
+  subscriptions:
+    repos:
+    - url: https://github.com/hamedhaddadian/kargo-argocd.git
+      branch: main
+    warehouse: kargo-argocd
+  promotionMechanisms:
+    argoCDAppUpdates:
+    - appName: fastapi-app-dev
+      appNamespace: argocd
