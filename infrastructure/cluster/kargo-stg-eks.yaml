@@ -1,0 +1,28 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: kargo-stg-eks
+  region: us-east-1
+  version: "1.34"
+
+iam:
+  withOIDC: true
+
+nodeGroups:
+  - name: spot-workers
+    instancesDistribution:
+      maxPrice: 0.2
+      instanceTypes:
+        - t3.medium
+        - t3.large
+        - m5.large
+        - m5.xlarge
+      onDemandBaseCapacity: 0
+      onDemandPercentageAboveBaseCapacity: 0
+      spotInstancePools: 4
+    desiredCapacity: 2
+    minSize: 1
+    maxSize: 5
+    managedNodeGroup: true
+    amiFamily: AmazonLinux2023

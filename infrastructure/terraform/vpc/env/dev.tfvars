@@ -20,7 +20,7 @@ private_subnet_count = 2
 subnet_cidr_newbits  = 8
 
 # Kubernetes Configuration
-# kubernetes_cluster_name auto-generated: kargo-dev-argocd-vpc-useast1
+kubernetes_cluster_name     = "kargo-dev-eks"  # Match actual EKS cluster name
 enable_nat_gateway      = true
 single_nat_gateway      = true
 
