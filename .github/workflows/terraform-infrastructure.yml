@@ -22,7 +22,6 @@ on:
         options:
           - dev
           - stg
-          - prd
       action:
         description: 'Terraform action to perform'
         required: true
@@ -189,7 +188,7 @@ jobs:
     if: needs.detect-changes.outputs.has-changes == 'true'
     strategy:
       matrix:
-        environment: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.target_environment)) || fromJSON('["dev", "stg", "prd"]') }}
+        environment: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.target_environment)) || fromJSON('["dev", "stg"]') }}
         module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
 
     steps:
@@ -402,69 +401,6 @@ jobs:
           path: ./infrastructure/terraform/${{ matrix.module }}/outputs.json
           retention-days: 30
 
-  # Progressive Deployment: Production Environment (Manual approval required)
-  deploy-production:
-    name: 'Deploy to Production'
-    needs: [deploy-staging, detect-changes]
-    runs-on: ubuntu-latest
-    if: |
-      needs.detect-changes.outputs.has-changes == 'true' &&
-      github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'prd' && github.event.inputs.action == 'apply'
-    strategy:
-      matrix:
-        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
-    environment:
-      name: production
-      url: https://console.aws.amazon.com/vpc/home?region=us-east-1
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Download Plan
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan-${{ matrix.module }}-prd
-          path: ./infrastructure/terraform/${{ matrix.module }}/
-
-      - name: Terraform Init
-        working-directory: ./infrastructure/terraform/${{ matrix.module }}
-        run: |
-          terraform init \
-            -backend-config="bucket=$S3_BUCKET" \
-            -backend-config="key=terraform/${{ matrix.module }}/prd/terraform.tfstate" \
-            -backend-config="region=$AWS_REGION"
-
-      - name: Terraform Apply
-        working-directory: ./infrastructure/terraform/${{ matrix.module }}
-        run: |
-          terraform apply -auto-approve prd.tfplan
-
-      - name: Save Outputs
-        working-directory: ./infrastructure/terraform/${{ matrix.module }}
-        run: |
-          terraform output -json > outputs.json
-          echo "📊 Production Terraform Outputs (${{ matrix.module }}):"
-          cat outputs.json
-
-      - name: Upload Outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-outputs-${{ matrix.module }}-prd
-          path: ./infrastructure/terraform/${{ matrix.module }}/outputs.json
-          retention-days: 30
 
   terraform-destroy:
     name: 'Terraform Destroy'
@@ -513,7 +449,7 @@ jobs:
   deployment-summary:
     name: 'Deployment Summary'
     runs-on: ubuntu-latest
-    needs: [deploy-dev, deploy-staging, deploy-production, detect-changes]
+    needs: [deploy-dev, deploy-staging, detect-changes]
     if: always() && needs.detect-changes.outputs.has-changes == 'true'
 
     steps:
@@ -529,7 +465,6 @@ jobs:
           echo "|-------------|---------|---------|" >> $GITHUB_STEP_SUMMARY
           echo "| Development | ${{ needs.deploy-dev.result == 'success' && '✅ Deployed' || needs.deploy-dev.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | ${{ needs.deploy-dev.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Staging | ${{ needs.deploy-staging.result == 'success' && '✅ Deployed' || needs.deploy-staging.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | ${{ needs.deploy-staging.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Production | ${{ needs.deploy-production.result == 'success' && '✅ Deployed' || needs.deploy-production.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
           echo "- [AWS Console](https://console.aws.amazon.com/vpc/home?region=us-east-1)" >> $GITHUB_STEP_SUMMARY
