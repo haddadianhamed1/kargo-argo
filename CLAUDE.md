@@ -54,9 +54,52 @@ docker build -t fastapi-app .
 docker run -p 8000:8000 fastapi-app
 ```
 
+## Jira Integration
+
+This repository is integrated with Jira for task and requirement management.
+
+### Jira Project Details
+- **Project Name**: Demo
+- **Project Key**: DEMO
+- **Instance**: haddadianapplication.atlassian.net
+- **Access**: Via Claude Code MCP integration
+
+### Available Issue Types
+- 📋 **Task** (DEMO-XXX) - Small, distinct pieces of work
+- 📖 **Story** (DEMO-XXX) - User functionality and features
+- 🐛 **Bug** (DEMO-XXX) - Problems or errors to fix
+- 🎯 **Epic** (DEMO-XXX) - Large features spanning multiple stories/tasks
+- 📝 **Subtask** (DEMO-XXX) - Components of larger tasks
+
+### Creating Tickets with Claude Code
+When working with Claude Code, you can create Jira tickets directly:
+
+```
+Example: "Create a Jira ticket for implementing user authentication feature"
+```
+
+Claude will create the ticket and provide the ticket number for branch naming.
+
+### Example Workflow
+```bash
+# 1. Create Jira ticket first (via Claude or Jira UI)
+# Ticket created: DEMO-127 "Add user dashboard feature"
+
+# 2. Create branch with ticket number
+git checkout -b feat/DEMO-127-user-dashboard
+
+# 3. Make changes and commit with ticket reference
+git commit -m "feat(dashboard): add user dashboard component (DEMO-127)"
+
+# 4. Push and create PR with ticket reference
+git push origin feat/DEMO-127-user-dashboard
+# PR Title: "feat(dashboard): add user dashboard component (DEMO-127)"
+# PR Description: "Closes DEMO-127 - Implements user dashboard with..."
+```
+
 ## Repository Configuration
 
-The repository includes development workflow configuration with pre-commit hooks, validation scripts, and GitHub integration.
+The repository includes development workflow configuration with pre-commit hooks, validation scripts, GitHub integration, and Jira tracking.
 
 ### Development Workflow Setup
 
@@ -67,20 +110,36 @@ pip install pre-commit
 pre-commit install
 ```
 
-2. **Branch naming conventions**:
-- `feature/description` - New features
-- `bugfix/description` - Bug fixes
-- `hotfix/description` - Urgent fixes
-- `release/version` - Release branches
+2. **Jira-Driven Development Workflow**:
 
-3. **Commit message format** (conventional commits):
-```
-type(scope): description
+**Step 1: Create Jira Ticket First**
+- Before starting any feature or task, create a ticket in the **Demo** Jira project (DEMO)
+- Use appropriate issue type: Task, Story, Bug, Epic, or Subtask
+- Include clear description, acceptance criteria, and requirements
+
+**Step 2: Branch Naming with Ticket Number**
+- Always use the Jira ticket number in branch names for traceability
+- Format: `{type}/{ticket-number}-{brief-description}`
 
 Examples:
-feat(api): add new endpoint
-fix(auth): resolve login issue
-docs: update README
+- `feat/DEMO-123-add-user-authentication` - New features
+- `bugfix/DEMO-124-fix-login-redirect` - Bug fixes
+- `hotfix/DEMO-125-security-patch` - Urgent fixes
+- `chore/DEMO-126-update-dependencies` - Maintenance tasks
+
+**Step 3: Link Code to Requirements**
+- Branch name automatically links commits to Jira ticket
+- Pull request title should reference ticket: `feat(auth): add user authentication (DEMO-123)`
+- Include ticket link in PR description
+
+3. **Commit message format** (conventional commits with ticket reference):
+```
+type(scope): description (TICKET-NUMBER)
+
+Examples:
+feat(api): add new endpoint (DEMO-123)
+fix(auth): resolve login issue (DEMO-124)
+docs: update README (DEMO-125)
 ```
 
 ### Automated Validation
@@ -125,9 +184,23 @@ docs: update README
 
 ### Pull Request Process
 
+- **Create from Jira ticket branch** (e.g., `feat/DEMO-123-feature-name`)
+- **Include ticket reference** in PR title and description
 - Use the provided PR template (`.github/pull_request_template.md`)
+- **Link to Jira ticket** for context and requirements
 - Ensure all checks pass (branch name, commit messages, formatting)
 - Follow the checklist in the PR template
+
+**PR Title Format:**
+```
+type(scope): description (DEMO-XXX)
+```
+
+**PR Description Should Include:**
+- Jira ticket link: `Closes DEMO-XXX` or `Relates to DEMO-XXX`
+- Summary of changes made
+- Testing approach
+- Screenshots/demos if applicable
 
 ## Development
 
