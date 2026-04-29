@@ -84,6 +84,9 @@ module "eks_cluster" {
   # OIDC configuration for IRSA
   oidc_provider_enabled = var.environment_config.enable_irsa
 
+  # Disable cluster wait check for GitHub Actions compatibility
+  wait_for_cluster_command = "echo 'Skipping cluster wait check'"
+
   tags = local.common_tags
 }
 

@@ -12,7 +12,7 @@ project_name = "Kargo ArgoCD Development"
 owner        = "Platform Team"
 
 # EKS Cluster Configuration
-kubernetes_version = "1.28"
+kubernetes_version = "1.34"
 
 # Endpoint access configuration (more open for development)
 cluster_endpoint_private_access      = true
@@ -30,7 +30,7 @@ node_groups = {
     min_size      = 1
     max_size      = 3
     desired_size  = 2
-    ami_type      = "AL2_x86_64"
+    ami_type      = "BOTTLEROCKET_x86_64"
     labels = {
       role = "general"
       environment = "dev"

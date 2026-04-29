@@ -12,7 +12,7 @@ project_name = "Kargo ArgoCD Staging"
 owner        = "Platform Team"
 
 # EKS Cluster Configuration
-kubernetes_version = "1.28"
+kubernetes_version = "1.34"
 
 # Endpoint access configuration (production-like)
 cluster_endpoint_private_access      = true
@@ -30,7 +30,7 @@ node_groups = {
     min_size      = 2
     max_size      = 6
     desired_size  = 3
-    ami_type      = "AL2_x86_64"
+    ami_type      = "BOTTLEROCKET_x86_64"
     labels = {
       role = "general"
       environment = "stg"
@@ -42,7 +42,7 @@ node_groups = {
     min_size      = 1
     max_size      = 2
     desired_size  = 1
-    ami_type      = "AL2_x86_64"
+    ami_type      = "BOTTLEROCKET_x86_64"
     labels = {
       role = "system"
       environment = "stg"
