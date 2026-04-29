@@ -68,11 +68,10 @@ module "eks_cluster" {
   vpc_id             = local.vpc_id
   subnet_ids         = concat(local.private_subnet_ids, local.public_subnet_ids)
   kubernetes_version = var.kubernetes_version
-  endpoint_config = {
-    private_access      = var.cluster_endpoint_private_access
-    public_access       = var.cluster_endpoint_public_access
-    public_access_cidrs = var.cluster_endpoint_public_access_cidrs
-  }
+  # Endpoint configuration
+  endpoint_private_access = var.cluster_endpoint_private_access
+  endpoint_public_access  = var.cluster_endpoint_public_access
+  public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
 
   # Logging configuration
   enabled_cluster_log_types    = var.enabled_cluster_log_types
