@@ -51,13 +51,8 @@ output "cluster_version" {
 }
 
 output "cluster_platform_version" {
-  description = "The platform version of the EKS cluster"
-  value       = module.eks_cluster.eks_cluster_platform_version
-}
-
-output "cluster_status" {
-  description = "The status of the EKS cluster"
-  value       = module.eks_cluster.eks_cluster_status
+  description = "The Kubernetes version of the EKS cluster"
+  value       = module.eks_cluster.eks_cluster_version
 }
 
 # Cluster Security
@@ -73,8 +68,8 @@ output "cluster_security_group_id" {
 }
 
 output "cluster_primary_security_group_id" {
-  description = "ID of the cluster primary security group"
-  value       = module.eks_cluster.eks_cluster_primary_security_group_id
+  description = "ID of the cluster managed security group"
+  value       = module.eks_cluster.eks_cluster_managed_security_group_id
 }
 
 output "worker_security_group_id" {
