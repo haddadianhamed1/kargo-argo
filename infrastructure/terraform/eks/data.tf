@@ -31,15 +31,15 @@ data "aws_kms_alias" "ebs" {
   name = "alias/aws/ebs"
 }
 
-# Latest EKS optimized AMI - For node group AMI references
+# Latest Bottlerocket EKS AMI - For node group AMI references
 data "aws_ami" "eks_worker" {
   filter {
     name   = "name"
-    values = ["amazon-eks-node-${var.kubernetes_version}-v*"]
+    values = ["bottlerocket-aws-k8s-${var.kubernetes_version}-x86_64-*"]
   }
 
   most_recent = true
-  owners      = ["602401143452"] # Amazon EKS AMI account ID
+  owners      = ["092701018921"] # Bottlerocket AMI account ID
 }
 
 # EKS Cluster Auth - For kubectl/helm provider configuration
