@@ -1,5 +1,5 @@
 # Configure the AWS Provider
-# Ready to deploy EKS cluster infrastructure
+# Ready to deploy EKS cluster infrastructure v1
 provider "aws" {
   region = var.aws_region
 
