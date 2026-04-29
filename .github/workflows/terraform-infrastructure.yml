@@ -173,7 +173,7 @@ jobs:
     strategy:
       matrix:
         environment: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.target_environment)) || fromJSON('["dev", "stg", "prd"]') }}
-        module: ${{ fromJSON(format('[{0}]', needs.detect-changes.outputs.changed-modules)) }}
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
 
     steps:
       - name: Checkout
@@ -267,7 +267,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'dev' && github.event.inputs.action == 'apply'))
     strategy:
       matrix:
-        module: ${{ fromJSON(format('[{0}]', needs.detect-changes.outputs.changed-modules)) }}
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
     environment:
       name: dev
 
@@ -331,7 +331,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'stg' && github.event.inputs.action == 'apply'))
     strategy:
       matrix:
-        module: ${{ fromJSON(format('[{0}]', needs.detect-changes.outputs.changed-modules)) }}
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
     environment:
       name: staging
       url: https://console.aws.amazon.com/vpc/home?region=us-east-1
@@ -395,7 +395,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'prd' && github.event.inputs.action == 'apply'
     strategy:
       matrix:
-        module: ${{ fromJSON(format('[{0}]', needs.detect-changes.outputs.changed-modules)) }}
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
     environment:
       name: production
       url: https://console.aws.amazon.com/vpc/home?region=us-east-1
@@ -458,7 +458,7 @@ jobs:
       github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
     strategy:
       matrix:
-        module: ${{ fromJSON(format('[{0}]', needs.detect-changes.outputs.changed-modules)) }}
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
     environment:
       name: ${{ github.event.inputs.target_environment }}-destroy
 
