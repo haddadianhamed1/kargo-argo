@@ -1,0 +1,162 @@
+# ArgoCD Helm Values
+# Helm chart: https://github.com/argoproj/argo-helm
+
+global:
+  image:
+    tag: "v2.13.2"  # Updated to more recent stable version
+
+configs:
+  cm:
+    # Server configuration
+    server.insecure: false
+
+    # Add your Git repositories here
+    repositories: |
+      - type: git
+        url: https://github.com/argoproj/argocd-example-apps
+      - type: helm
+        url: https://argoproj.github.io/argo-helm
+        name: argo
+
+  rbac:
+    # RBAC policy configuration
+    policy.default: role:readonly
+    policy.csv: |
+      p, role:admin, applications, *, */*, allow
+      p, role:admin, clusters, *, *, allow
+      p, role:admin, repositories, *, *, allow
+      p, role:readonly, applications, get, */*, allow
+      p, role:readonly, clusters, get, *, allow
+      p, role:readonly, repositories, get, *, allow
+
+      g, argocd-admins, role:admin
+
+  secret:
+    # Initial admin password - change this!
+    argocdServerAdminPassword: "$2a$10$hUeRS.ihN.Ry.2Fx/NqsO2BHZhHPTfG8u8Q7uUZtAnJmZIidGgI6"  # admin123
+    # Generate with: argocd admin initial-password or bcrypt
+
+server:
+  # Server configuration
+  replicas: 1
+
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  # Service configuration
+  service:
+    type: LoadBalancer  # Changed from ClusterIP to LoadBalancer
+    port: 443  # Changed to 443 for HTTPS
+    portName: https
+
+    # LoadBalancer annotations for IP restriction (alternative to ingress)
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+      service.beta.kubernetes.io/aws-load-balancer-source-ranges: "24.130.139.84/32"
+
+  # Ingress configuration with AWS Load Balancer Controller
+  ingress:
+    enabled: true
+    ingressClassName: alb
+
+    annotations:
+      # AWS Load Balancer Controller annotations
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: '443'
+
+      # IP whitelist - only allow access from specific IP
+      alb.ingress.kubernetes.io/inbound-cidrs: "24.130.139.84/32"
+
+      # ArgoCD specific annotations
+      alb.ingress.kubernetes.io/backend-protocol: HTTP
+      alb.ingress.kubernetes.io/healthcheck-path: /healthz
+      alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+
+      # Security headers
+      alb.ingress.kubernetes.io/load-balancer-attributes: routing.http2.enabled=true
+
+    # hosts:
+      # - argocd.example.com  # Removed to avoid certificate issues
+
+    paths:
+      - /
+
+    pathType: Prefix
+
+    # TLS configuration removed - using default ALB termination
+
+  # Additional arguments for ArgoCD server
+  extraArgs: []  # Removed --insecure for proper HTTPS setup
+
+applicationController:
+  # Application controller configuration
+  replicas: 1
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+repoServer:
+  # Repository server configuration
+  replicas: 1
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+redis:
+  # Redis configuration
+  enabled: true
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+dex:
+  # Dex server configuration (for SSO)
+  enabled: true
+
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+# Notifications controller
+notifications:
+  enabled: false  # Enable if you want notifications
+
+# Application Set controller
+applicationSet:
+  enabled: true
+
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi

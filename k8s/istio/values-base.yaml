@@ -1,0 +1,14 @@
+# Istio Base Helm Values
+# This installs the Istio base components (CRDs and core resources)
+
+# Default revisions and naming
+defaultRevision: default
+
+# Validation webhook configuration
+istiodRemote:
+  enabled: false
+
+# Base CRD configuration
+base:
+  # Enable validation webhook
+  enableCRDTemplates: true
