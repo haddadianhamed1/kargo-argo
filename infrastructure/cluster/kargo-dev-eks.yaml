@@ -1,0 +1,28 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: kargo-dev-eks
+  region: us-east-1
+  version: "1.34"
+
+iam:
+  withOIDC: true
+  serviceAccounts:
+    - metadata:
+        name: aws-load-balancer-controller
+        namespace: kube-system
+      wellKnownPolicies:
+        awsLoadBalancerController: true
+
+managedNodeGroups:
+  - name: spot-workers
+    instanceTypes:
+      - t3.medium
+      - t3.large
+      - m5.large
+      - m5.xlarge
+    desiredCapacity: 2
+    minSize: 1
+    maxSize: 5
+    amiFamily: AmazonLinux2023
