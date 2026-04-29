@@ -79,65 +79,32 @@ module "vpc" {
   dns_support_enabled   = true
 }
 
-# CloudPosse Public Subnets Module
-module "public_subnets" {
+# CloudPosse Dynamic Subnets Module - Creates both public and private subnets
+module "subnets" {
   source  = "cloudposse/dynamic-subnets/aws"
   version = "~> 2.0"
 
   namespace   = module.label.namespace
   environment = module.label.environment
   stage       = module.label.stage
-  name        = "${module.label.name}-public"
+  name        = module.label.name
   attributes  = module.label.attributes
   delimiter   = module.label.delimiter
 
   vpc_id             = module.vpc.vpc_id
   igw_id             = [module.vpc.igw_id]
-  availability_zones = slice(data.aws_availability_zones.available.names, 0, var.public_subnet_count)
+  availability_zones = slice(data.aws_availability_zones.available.names, 0, max(var.public_subnet_count, var.private_subnet_count))
 
-  # Public subnet configuration
+  # Subnet configuration
   public_subnets_enabled  = true
-  private_subnets_enabled = false
-  nat_gateway_enabled     = false
-  nat_instance_enabled    = false
-
-  tags = merge(
-    local.common_tags,
-    local.kubernetes_public_tags,
-    {
-      "SubnetType" = "public"
-    }
-  )
-}
-
-# CloudPosse Private Subnets Module
-module "private_subnets" {
-  source  = "cloudposse/dynamic-subnets/aws"
-  version = "~> 2.0"
-
-  namespace   = module.label.namespace
-  environment = module.label.environment
-  stage       = module.label.stage
-  name        = "${module.label.name}-private"
-  attributes  = module.label.attributes
-  delimiter   = module.label.delimiter
-
-  vpc_id             = module.vpc.vpc_id
-  igw_id             = [module.vpc.igw_id]
-  availability_zones = slice(data.aws_availability_zones.available.names, 0, var.private_subnet_count)
-
-  # Private subnet configuration
-  public_subnets_enabled  = false
   private_subnets_enabled = true
   nat_gateway_enabled     = var.enable_nat_gateway
   nat_instance_enabled    = false
 
   tags = merge(
     local.common_tags,
-    local.kubernetes_private_tags,
-    {
-      "SubnetType" = "private"
-    }
+    local.kubernetes_public_tags,
+    local.kubernetes_private_tags
   )
 }
 
@@ -215,7 +182,7 @@ resource "aws_vpc_endpoint" "ec2" {
   vpc_id             = module.vpc.vpc_id
   service_name       = "com.amazonaws.${var.aws_region}.ec2"
   vpc_endpoint_type  = "Interface"
-  subnet_ids         = module.private_subnets.private_subnet_ids
+  subnet_ids         = module.subnets.private_subnet_ids
   security_group_ids = [aws_security_group.kubernetes_cluster.id]
 
   tags = merge(

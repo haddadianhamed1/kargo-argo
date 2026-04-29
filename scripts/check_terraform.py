@@ -25,7 +25,9 @@ def find_terraform_dirs():
     infrastructure_path = Path('infrastructure')
     if infrastructure_path.exists():
         for tf_file in infrastructure_path.rglob('*.tf'):
-            terraform_dirs.add(tf_file.parent)
+            # Skip .terraform directories
+            if '.terraform' not in str(tf_file.parent):
+                terraform_dirs.add(tf_file.parent)
 
     return terraform_dirs
 

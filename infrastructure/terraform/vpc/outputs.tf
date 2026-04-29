@@ -53,43 +53,43 @@ output "internet_gateway_id" {
 # Public Subnet Outputs
 output "public_subnet_ids" {
   description = "List of IDs of the public subnets"
-  value       = module.public_subnets.public_subnet_ids
+  value       = module.subnets.public_subnet_ids
 }
 
 output "public_subnet_cidrs" {
   description = "List of CIDR blocks of the public subnets"
-  value       = module.public_subnets.public_subnet_cidrs
+  value       = module.subnets.public_subnet_cidrs
 }
 
 output "public_route_table_ids" {
   description = "List of IDs of the public route tables"
-  value       = module.public_subnets.public_route_table_ids
+  value       = module.subnets.public_route_table_ids
 }
 
 # Private Subnet Outputs
 output "private_subnet_ids" {
   description = "List of IDs of the private subnets"
-  value       = module.private_subnets.private_subnet_ids
+  value       = module.subnets.private_subnet_ids
 }
 
 output "private_subnet_cidrs" {
   description = "List of CIDR blocks of the private subnets"
-  value       = module.private_subnets.private_subnet_cidrs
+  value       = module.subnets.private_subnet_cidrs
 }
 
 output "private_route_table_ids" {
   description = "List of IDs of the private route tables"
-  value       = module.private_subnets.private_route_table_ids
+  value       = module.subnets.private_route_table_ids
 }
 
 output "nat_gateway_ids" {
   description = "List of IDs of the NAT Gateways"
-  value       = module.private_subnets.nat_gateway_ids
+  value       = module.subnets.nat_gateway_ids
 }
 
 output "nat_eip_ids" {
   description = "List of IDs of the NAT Gateway Elastic IPs"
-  value       = module.private_subnets.nat_ips
+  value       = module.subnets.nat_ips
 }
 
 # Security Group Outputs
@@ -133,8 +133,8 @@ output "vpc_summary" {
     vpc_cidr              = module.vpc.vpc_cidr_block
     environment           = var.environment
     region                = var.aws_region
-    public_subnets        = length(module.public_subnets.public_subnet_ids)
-    private_subnets       = length(module.private_subnets.private_subnet_ids)
+    public_subnets        = length(module.subnets.public_subnet_ids)
+    private_subnets       = length(module.subnets.private_subnet_ids)
     availability_zones    = length(slice(data.aws_availability_zones.available.names, 0, max(var.public_subnet_count, var.private_subnet_count)))
     vpc_endpoints_enabled = var.environment_config.enable_vpc_endpoints
   }
@@ -145,8 +145,8 @@ output "eks_cluster_config" {
   description = "Configuration values needed for EKS cluster deployment"
   value = {
     vpc_id                    = module.vpc.vpc_id
-    private_subnet_ids        = module.private_subnets.private_subnet_ids
-    public_subnet_ids         = module.public_subnets.public_subnet_ids
+    private_subnet_ids        = module.subnets.private_subnet_ids
+    public_subnet_ids         = module.subnets.public_subnet_ids
     cluster_security_group_id = aws_security_group.kubernetes_cluster.id
     cluster_name              = local.cluster_name
     cluster_endpoint_access = {
