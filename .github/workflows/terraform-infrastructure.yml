@@ -32,6 +32,15 @@ on:
           - plan
           - apply
           - destroy
+      target_module:
+        description: 'Terraform module to run (leave empty for auto-detect)'
+        required: false
+        default: ''
+        type: choice
+        options:
+          - ''
+          - vpc
+          - eks
 
 env:
   TF_VERSION: '1.5.7'
@@ -132,34 +141,41 @@ jobs:
       - name: Detect changed terraform modules
         id: detect
         run: |
-          # Get changed files compared to main branch or previous commit
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          # Check for manual module selection first
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.target_module }}" ]; then
+            CHANGED_MODULES="${{ github.event.inputs.target_module }}"
+            HAS_CHANGES="true"
+            echo "Manual module selection: $CHANGED_MODULES"
           else
-            CHANGED_FILES=$(git diff --name-only HEAD~1)
-          fi
-
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
-
-          # Find terraform modules that have changes
-          CHANGED_MODULES=""
-          HAS_CHANGES="false"
-
-          for file in $CHANGED_FILES; do
-            if [[ $file == infrastructure/terraform/*/*.tf ]]; then
-              MODULE_DIR=$(echo $file | cut -d'/' -f1-3)
-              MODULE_NAME=$(basename $MODULE_DIR)
-              if [[ ! $CHANGED_MODULES =~ $MODULE_NAME ]]; then
-                if [ -z "$CHANGED_MODULES" ]; then
-                  CHANGED_MODULES="$MODULE_NAME"
-                else
-                  CHANGED_MODULES="$CHANGED_MODULES,$MODULE_NAME"
-                fi
-                HAS_CHANGES="true"
-              fi
+            # Auto-detect changed modules
+            if [ "${{ github.event_name }}" == "pull_request" ]; then
+              CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+            else
+              CHANGED_FILES=$(git diff --name-only HEAD~1)
             fi
-          done
+
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+
+            # Find terraform modules that have changes
+            CHANGED_MODULES=""
+            HAS_CHANGES="false"
+
+            for file in $CHANGED_FILES; do
+              if [[ $file == infrastructure/terraform/*/*.tf ]]; then
+                MODULE_DIR=$(echo $file | cut -d'/' -f1-3)
+                MODULE_NAME=$(basename $MODULE_DIR)
+                if [[ ! $CHANGED_MODULES =~ $MODULE_NAME ]]; then
+                  if [ -z "$CHANGED_MODULES" ]; then
+                    CHANGED_MODULES="$MODULE_NAME"
+                  else
+                    CHANGED_MODULES="$CHANGED_MODULES,$MODULE_NAME"
+                  fi
+                  HAS_CHANGES="true"
+                fi
+              fi
+            done
+          fi
 
           echo "Changed modules: $CHANGED_MODULES"
           echo "modules=$CHANGED_MODULES" >> $GITHUB_OUTPUT
