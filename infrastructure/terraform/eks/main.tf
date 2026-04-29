@@ -89,7 +89,7 @@ module "eks_cluster" {
 # CloudPosse EKS Node Group Module
 module "eks_node_groups" {
   source  = "cloudposse/eks-node-group/aws"
-  version = "~> 2.0"
+  version = "3.2.0"
 
   # Create one iteration for each node group defined in variables
   for_each = var.node_groups
@@ -108,34 +108,17 @@ module "eks_node_groups" {
 
   # Node group configuration
   instance_types = each.value.instance_types
-  capacity_type  = each.value.capacity_type
   min_size       = each.value.min_size
   max_size       = each.value.max_size
   desired_size   = each.value.desired_size
 
-  # Disk configuration
-  disk_size = each.value.disk_size
-
   # AMI configuration
   ami_type = each.value.ami_type
 
-  # Labels and taints
+  # Labels
   kubernetes_labels = merge(each.value.labels, {
     "cluster.k8s.amazonaws.com/name" = module.eks_cluster.eks_cluster_id
   })
-
-  # Apply taints if specified
-  dynamic "kubernetes_taints" {
-    for_each = each.value.taints
-    content {
-      key    = kubernetes_taints.value.key
-      value  = kubernetes_taints.value.value
-      effect = kubernetes_taints.value.effect
-    }
-  }
-
-  # Force update version when cluster version changes
-  force_update_version = true
 
   tags = merge(local.common_tags, {
     "NodeGroup" = each.key

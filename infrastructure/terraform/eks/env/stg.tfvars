@@ -27,38 +27,26 @@ cluster_log_retention_period = 7
 node_groups = {
   general = {
     instance_types = ["t3.large"]
-    capacity_type  = "SPOT"
     min_size      = 2
     max_size      = 6
     desired_size  = 3
-    disk_size     = 50
     ami_type      = "AL2_x86_64"
     labels = {
       role = "general"
       environment = "stg"
     }
-    taints = []
   }
 
   system = {
     instance_types = ["t3.medium"]
-    capacity_type  = "SPOT"
     min_size      = 1
     max_size      = 2
     desired_size  = 1
-    disk_size     = 30
     ami_type      = "AL2_x86_64"
     labels = {
       role = "system"
       environment = "stg"
     }
-    taints = [
-      {
-        key    = "system"
-        value  = "true"
-        effect = "NO_SCHEDULE"
-      }
-    ]
   }
 }
 

@@ -110,18 +110,11 @@ variable "node_groups" {
   description = "Configuration for EKS managed node groups"
   type = map(object({
     instance_types = list(string)
-    capacity_type  = string
     min_size       = number
     max_size       = number
     desired_size   = number
-    disk_size      = number
     ami_type       = string
     labels         = map(string)
-    taints = list(object({
-      key    = string
-      value  = string
-      effect = string
-    }))
   }))
   default = {}
 }

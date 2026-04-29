@@ -27,59 +27,38 @@ cluster_log_retention_period = 30
 node_groups = {
   general = {
     instance_types = ["m5.xlarge", "m5.large"]
-    capacity_type  = "SPOT"
     min_size      = 3
     max_size      = 10
     desired_size  = 5
-    disk_size     = 100
     ami_type      = "AL2_x86_64"
     labels = {
       role = "general"
       environment = "prd"
     }
-    taints = []
   }
 
   system = {
     instance_types = ["t3.large"]
-    capacity_type  = "SPOT"
     min_size      = 2
     max_size      = 4
     desired_size  = 2
-    disk_size     = 50
     ami_type      = "AL2_x86_64"
     labels = {
       role = "system"
       environment = "prd"
     }
-    taints = [
-      {
-        key    = "system"
-        value  = "true"
-        effect = "NO_SCHEDULE"
-      }
-    ]
   }
 
   compute = {
     instance_types = ["c5.2xlarge", "c5.xlarge"]
-    capacity_type  = "SPOT"
     min_size      = 1
     max_size      = 8
     desired_size  = 2
-    disk_size     = 100
     ami_type      = "AL2_x86_64"
     labels = {
       role = "compute"
       environment = "prd"
     }
-    taints = [
-      {
-        key    = "compute-optimized"
-        value  = "true"
-        effect = "NO_SCHEDULE"
-      }
-    ]
   }
 }
 
