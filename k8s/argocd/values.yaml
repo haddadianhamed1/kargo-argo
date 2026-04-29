@@ -3,7 +3,7 @@
 
 global:
   image:
-    tag: "v2.13.2"  # Updated to more recent stable version
+    tag: "v2.13.2"  # Compatible with Kargo
 
 configs:
   cm:
@@ -12,6 +12,8 @@ configs:
 
     # Add your Git repositories here
     repositories: |
+      - type: git
+        url: https://github.com/hamedhaddadian/kargo-argocd
       - type: git
         url: https://github.com/argoproj/argocd-example-apps
       - type: helm

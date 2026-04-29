@@ -1,0 +1,14 @@
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: staging
+  namespace: kargo-argocd
+spec:
+  subscriptions:
+    upstreamStages:
+    - name: dev
+    warehouse: kargo-argocd
+  promotionMechanisms:
+    argoCDAppUpdates:
+    - appName: fastapi-app-staging
+      appNamespace: argocd

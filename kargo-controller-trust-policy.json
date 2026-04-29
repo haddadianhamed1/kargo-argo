@@ -1,0 +1,18 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::992382364873:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/2AC3BBA7C00B93B57B6C8F8B6C85D82D"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.eks.us-east-1.amazonaws.com/id/2AC3BBA7C00B93B57B6C8F8B6C85D82D:aud": "sts.amazonaws.com",
+          "oidc.eks.us-east-1.amazonaws.com/id/2AC3BBA7C00B93B57B6C8F8B6C85D82D:sub": "system:serviceaccount:kargo:kargo-controller"
+        }
+      }
+    }
+  ]
+}

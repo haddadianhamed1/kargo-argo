@@ -1,0 +1,10 @@
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: kargo-argocd
+  namespace: kargo-argocd
+spec:
+  subscriptions:
+  - image:
+      repoURL: 992382364873.dkr.ecr.us-east-1.amazonaws.com/kargo-argocd
+      semverConstraint: "*"
