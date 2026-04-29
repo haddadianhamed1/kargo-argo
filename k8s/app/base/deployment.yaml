@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-app
+  labels:
+    app: fastapi-app
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fastapi-app
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: fastapi-app
+        version: v1
+    spec:
+      containers:
+      - name: fastapi-app
+        image: 992382364873.dkr.ecr.us-east-1.amazonaws.com/kargo-argocd:7eafbb69e1f5d55c6fd4efee7fa6c4e841184aa8
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: ENVIRONMENT
+          value: "base"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /hiv1
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /hiv1
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
