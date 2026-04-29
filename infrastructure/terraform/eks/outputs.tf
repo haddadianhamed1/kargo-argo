@@ -93,12 +93,11 @@ output "node_groups" {
   description = "Map of node group attributes"
   value = {
     for k, v in module.eks_node_groups : k => {
-      arn            = v.eks_node_group_arn
-      id             = v.eks_node_group_id
-      status         = v.eks_node_group_status
-      instance_types = v.eks_node_group_instance_types
-      ami_type       = v.eks_node_group_ami_type
-      node_role_arn  = v.eks_node_group_role_arn
+      arn                = v.eks_node_group_arn
+      id                 = v.eks_node_group_id
+      status             = v.eks_node_group_status
+      node_role_arn      = v.eks_node_group_role_arn
+      launch_template_id = v.eks_node_group_launch_template_id
     }
   }
 }
