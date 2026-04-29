@@ -2,54 +2,53 @@ name: Claude Code Review
 
 on:
   pull_request:
-    branches: [ main, master, develop ]
-    types: [ opened, synchronize ]
-
-  # Manual trigger
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number to review'
-        required: false
-        type: string
-
-  # Comment trigger (@claude mentions)
-  issue_comment:
-    types: [ created ]
+    branches: [ main ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
 
 permissions:
   contents: read
   pull-requests: write
   issues: write
-  id-token: write  # Required for OIDC token
+  id-token: write
 
 jobs:
   claude-review:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-      with:
-        fetch-depth: 0
+      - name: Checkout PR code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
 
-    - name: Claude Code Review
-      uses: anthropics/claude-code-action@v1
-      with:
-        # Your Anthropic API key (required)
-        anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      - name: Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
-        # GitHub token for API access (optional, uses default if not provided)
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+          track_progress: true
+          use_sticky_comment: false
 
-        # Trigger phrase for comments (optional)
-        trigger_phrase: "@claude"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
 
-        # Faster execution - disable progress tracking
-        track_progress: false
+            Review this pull request briefly.
 
-        # Faster execution - disable sticky comments
-        use_sticky_comment: false
+            Focus on:
+            - obvious bugs
+            - security risks
+            - broken GitHub Actions / Kubernetes / Terraform patterns
+            - anything that could break deployment
 
-        # Always provide feedback
-        prompt: "Review briefly and always leave a short summary comment, even if everything looks good."
+            Always post one short top-level PR comment using `gh pr comment`.
+
+            If everything looks good, still post a short comment saying:
+            "Claude review complete. No major issues found."
+
+            Do not only return the review in the GitHub Actions logs.
+            You must post the result to the PR.
+
+          claude_args: |
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"
