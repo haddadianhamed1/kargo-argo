@@ -45,11 +45,11 @@ jobs:
         # Trigger phrase for comments (optional)
         trigger_phrase: "@claude"
 
-        # Enable progress tracking (optional)
-        track_progress: true
+        # Faster execution - disable progress tracking
+        track_progress: false
 
-        # Use sticky comments for updates (optional)
-        use_sticky_comment: true
+        # Faster execution - disable sticky comments
+        use_sticky_comment: false
 
-        # Force review mode (optional)
-        prompt: "Please review this pull request for code quality, security, and best practices."
+        # Minimal review - no deep analysis
+        prompt: "Check for obvious errors only. Be brief."
