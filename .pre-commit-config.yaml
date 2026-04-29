@@ -16,6 +16,13 @@ repos:
         pass_filenames: true
         always_run: false
 
+      - id: check-terraform
+        name: Check Terraform configuration
+        entry: python3 scripts/check_terraform.py
+        language: system
+        files: ^infrastructure/.*\.tf$
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:

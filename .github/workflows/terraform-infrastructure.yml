@@ -1,0 +1,454 @@
+name: 'Terraform Infrastructure'
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: 'Target environment for manual deployment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - stg
+          - prd
+      action:
+        description: 'Terraform action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  TF_VERSION: '1.5.7'
+  AWS_REGION: 'us-east-1'
+  S3_BUCKET: 'github-actions-kargo-argocd'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  setup-backend:
+    name: 'Setup S3 Backend'
+    runs-on: ubuntu-latest
+    outputs:
+      backend-configured: ${{ steps.check-backend.outputs.configured }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check if S3 backend exists
+        id: check-backend
+        run: |
+          # Check if S3 bucket exists
+          if aws s3api head-bucket --bucket "$S3_BUCKET" 2>/dev/null; then
+            echo "✅ S3 bucket exists"
+            BUCKET_EXISTS=true
+          else
+            echo "❌ S3 bucket does not exist"
+            BUCKET_EXISTS=false
+          fi
+
+          if [ "$BUCKET_EXISTS" = true ]; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "configured=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create S3 backend resources
+        if: steps.check-backend.outputs.configured == 'false'
+        run: |
+          echo "🚀 Setting up Terraform S3 backend..."
+
+          # Create S3 bucket
+          if ! aws s3api head-bucket --bucket "$S3_BUCKET" 2>/dev/null; then
+            aws s3 mb "s3://$S3_BUCKET" --region "$AWS_REGION"
+            echo "✅ S3 bucket created"
+
+            # Enable versioning
+            aws s3api put-bucket-versioning \
+              --bucket "$S3_BUCKET" \
+              --versioning-configuration Status=Enabled
+
+            # Enable encryption
+            aws s3api put-bucket-encryption \
+              --bucket "$S3_BUCKET" \
+              --server-side-encryption-configuration '{
+                "Rules": [
+                  {
+                    "ApplyServerSideEncryptionByDefault": {
+                      "SSEAlgorithm": "AES256"
+                    },
+                    "BucketKeyEnabled": true
+                  }
+                ]
+              }'
+
+            # Block public access
+            aws s3api put-public-access-block \
+              --bucket "$S3_BUCKET" \
+              --public-access-block-configuration \
+                "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+
+            echo "✅ S3 bucket configured"
+          fi
+
+  terraform-plan:
+    name: 'Terraform Plan'
+    needs: setup-backend
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.target_environment)) || fromJSON('["dev", "stg", "prd"]') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform init \
+            -backend-config="bucket=$S3_BUCKET" \
+            -backend-config="key=terraform/vpc/${{ matrix.environment }}/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION"
+
+      - name: Terraform Validate
+        working-directory: ./infrastructure/terraform/vpc
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform plan \
+            -var-file="env/${{ matrix.environment }}.tfvars" \
+            -out="${{ matrix.environment }}.tfplan"
+
+      - name: Save Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: ./infrastructure/terraform/vpc/${{ matrix.environment }}.tfplan
+          retention-days: 5
+
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = './infrastructure/terraform/vpc';
+
+            // Run terraform show to get plan output
+            const { execSync } = require('child_process');
+            try {
+              const planOutput = execSync(`cd ${path} && terraform show -no-color ${{ matrix.environment }}.tfplan`, { encoding: 'utf8' });
+
+              const output = `### Terraform Plan (${{ matrix.environment }})
+
+              \`\`\`
+              ${planOutput}
+              \`\`\`
+
+              <details>
+              <summary>Show Plan Details</summary>
+
+              **Environment:** ${{ matrix.environment }}
+              **Workspace:** terraform/vpc/${{ matrix.environment }}
+              **Backend:** S3 (${process.env.S3_BUCKET})
+
+              </details>`;
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              });
+            } catch (error) {
+              console.log('Error running terraform show:', error);
+            }
+
+  # Progressive Deployment: Dev Environment (Auto-deploy)
+  deploy-dev:
+    name: 'Deploy to Development'
+    needs: [setup-backend, terraform-plan]
+    runs-on: ubuntu-latest
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'dev' && github.event.inputs.action == 'apply')
+    environment:
+      name: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-dev
+          path: ./infrastructure/terraform/vpc/
+
+      - name: Terraform Init
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform init \
+            -backend-config="bucket=$S3_BUCKET" \
+            -backend-config="key=terraform/vpc/dev/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION"
+
+      - name: Terraform Apply
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform apply -auto-approve dev.tfplan
+
+      - name: Save Outputs
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform output -json > outputs.json
+          echo "📊 Development Terraform Outputs:"
+          cat outputs.json
+
+      - name: Upload Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs-dev
+          path: ./infrastructure/terraform/vpc/outputs.json
+          retention-days: 30
+
+  # Progressive Deployment: Staging Environment (Manual approval required)
+  deploy-staging:
+    name: 'Deploy to Staging'
+    needs: [deploy-dev]
+    runs-on: ubuntu-latest
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'stg' && github.event.inputs.action == 'apply')
+    environment:
+      name: staging
+      url: https://console.aws.amazon.com/vpc/home?region=us-east-1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-stg
+          path: ./infrastructure/terraform/vpc/
+
+      - name: Terraform Init
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform init \
+            -backend-config="bucket=$S3_BUCKET" \
+            -backend-config="key=terraform/vpc/stg/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION"
+
+      - name: Terraform Apply
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform apply -auto-approve stg.tfplan
+
+      - name: Save Outputs
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform output -json > outputs.json
+          echo "📊 Staging Terraform Outputs:"
+          cat outputs.json
+
+      - name: Upload Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs-stg
+          path: ./infrastructure/terraform/vpc/outputs.json
+          retention-days: 30
+
+  # Progressive Deployment: Production Environment (Manual approval required)
+  deploy-production:
+    name: 'Deploy to Production'
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'prd' && github.event.inputs.action == 'apply'
+    environment:
+      name: production
+      url: https://console.aws.amazon.com/vpc/home?region=us-east-1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-prd
+          path: ./infrastructure/terraform/vpc/
+
+      - name: Terraform Init
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform init \
+            -backend-config="bucket=$S3_BUCKET" \
+            -backend-config="key=terraform/vpc/prd/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION"
+
+      - name: Terraform Apply
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform apply -auto-approve prd.tfplan
+
+      - name: Save Outputs
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform output -json > outputs.json
+          echo "📊 Production Terraform Outputs:"
+          cat outputs.json
+
+      - name: Upload Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs-prd
+          path: ./infrastructure/terraform/vpc/outputs.json
+          retention-days: 30
+
+  terraform-destroy:
+    name: 'Terraform Destroy'
+    needs: setup-backend
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    environment:
+      name: ${{ github.event.inputs.target_environment }}-destroy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform init \
+            -backend-config="bucket=$S3_BUCKET" \
+            -backend-config="key=terraform/vpc/${{ github.event.inputs.target_environment }}/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION"
+
+      - name: Terraform Destroy
+        working-directory: ./infrastructure/terraform/vpc
+        run: |
+          terraform destroy -auto-approve \
+            -var-file="env/${{ github.event.inputs.target_environment }}.tfvars"
+
+  # Deployment Summary
+  deployment-summary:
+    name: 'Deployment Summary'
+    runs-on: ubuntu-latest
+    needs: [deploy-dev, deploy-staging, deploy-production]
+    if: always() && (needs.deploy-dev.result == 'success' || needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success')
+
+    steps:
+      - name: Generate Deployment Summary
+        run: |
+          echo "## 🚀 Terraform Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Environment Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Status | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|---------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Development | ${{ needs.deploy-dev.result == 'success' && '✅ Deployed' || needs.deploy-dev.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | ${{ needs.deploy-dev.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Staging | ${{ needs.deploy-staging.result == 'success' && '✅ Deployed' || needs.deploy-staging.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | ${{ needs.deploy-staging.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production | ${{ needs.deploy-production.result == 'success' && '✅ Deployed' || needs.deploy-production.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [AWS VPC Console](https://console.aws.amazon.com/vpc/home?region=us-east-1)" >> $GITHUB_STEP_SUMMARY
+          echo "- [S3 Terraform State](https://s3.console.aws.amazon.com/s3/buckets/github-actions-kargo-argocd)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Terraform Outputs Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Deployment Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Terraform Version**: ${{ env.TF_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **AWS Region**: ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
