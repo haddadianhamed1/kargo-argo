@@ -18,6 +18,11 @@ def get_hamed():
     return "hamed"
 
 
+@app.get("/test2")
+def get_test2():
+    return "test2"
+
+
 if __name__ == "__main__":
     import uvicorn
 

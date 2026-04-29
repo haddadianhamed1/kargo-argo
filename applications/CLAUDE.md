@@ -22,6 +22,7 @@ The main FastAPI application file containing:
 - **GET /hiv1** - Endpoint returning "hiv1" string
 - **GET /hiv2** - Endpoint returning "hiv2" string
 - **GET /hamed** - Endpoint returning "hamed" string
+- **GET /test2** - Endpoint returning "test2" string
 - **Uvicorn runner** - Development server configuration
 
 ### API Endpoints
@@ -31,6 +32,7 @@ The main FastAPI application file containing:
 | `/hiv1`  | GET    | "hiv1"   | Returns hiv1 identifier |
 | `/hiv2`  | GET    | "hiv2"   | Returns hiv2 identifier |
 | `/hamed` | GET    | "hamed"  | Returns hamed identifier |
+| `/test2` | GET    | "test2"  | Returns test2 identifier |
 
 ### Dependencies
 
