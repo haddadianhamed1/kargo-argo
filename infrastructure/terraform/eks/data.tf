@@ -47,6 +47,11 @@ data "aws_eks_cluster_auth" "cluster" {
   name = module.eks_cluster.eks_cluster_id
 }
 
+# Current public IP - For GitHub Actions dynamic access
+data "http" "current_ip" {
+  url = "https://icanhazip.com"
+}
+
 # Note: VPC and subnet data comes from remote state - no additional AWS API calls needed
 
 # Local values computed from data sources
@@ -69,6 +74,13 @@ locals {
 
   # Node group subnet IDs (use private subnets for worker nodes)
   node_group_subnet_ids = local.private_subnet_ids
+
+  # Dynamic IP access - combine static CIDRs with current GitHub Actions runner IP
+  current_ip = trimspace(data.http.current_ip.response_body)
+  dynamic_public_access_cidrs = concat(
+    var.cluster_endpoint_public_access_cidrs,
+    ["${local.current_ip}/32"] # Add current IP for GitHub Actions access
+  )
 
   # Provider-safe tags (no data source dependencies)
   provider_tags = merge(
