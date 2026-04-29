@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'feature/**'
     paths:
       - 'infrastructure/**'
   pull_request:
@@ -116,13 +117,63 @@ jobs:
             echo "✅ S3 bucket configured"
           fi
 
+  detect-changes:
+    name: 'Detect Changed Terraform Modules'
+    runs-on: ubuntu-latest
+    outputs:
+      changed-modules: ${{ steps.detect.outputs.modules }}
+      has-changes: ${{ steps.detect.outputs.has-changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed terraform modules
+        id: detect
+        run: |
+          # Get changed files compared to main branch or previous commit
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1)
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Find terraform modules that have changes
+          CHANGED_MODULES=""
+          HAS_CHANGES="false"
+
+          for file in $CHANGED_FILES; do
+            if [[ $file == infrastructure/terraform/*/*.tf ]]; then
+              MODULE_DIR=$(echo $file | cut -d'/' -f1-3)
+              MODULE_NAME=$(basename $MODULE_DIR)
+              if [[ ! $CHANGED_MODULES =~ $MODULE_NAME ]]; then
+                if [ -z "$CHANGED_MODULES" ]; then
+                  CHANGED_MODULES="$MODULE_NAME"
+                else
+                  CHANGED_MODULES="$CHANGED_MODULES,$MODULE_NAME"
+                fi
+                HAS_CHANGES="true"
+              fi
+            fi
+          done
+
+          echo "Changed modules: $CHANGED_MODULES"
+          echo "modules=$CHANGED_MODULES" >> $GITHUB_OUTPUT
+          echo "has-changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
+
   terraform-plan:
     name: 'Terraform Plan'
-    needs: setup-backend
+    needs: [setup-backend, detect-changes]
     runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.has-changes == 'true'
     strategy:
       matrix:
         environment: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.target_environment)) || fromJSON('["dev", "stg", "prd"]') }}
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
 
     steps:
       - name: Checkout
@@ -141,19 +192,19 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform init \
             -backend-config="bucket=$S3_BUCKET" \
-            -backend-config="key=terraform/vpc/${{ matrix.environment }}/terraform.tfstate" \
+            -backend-config="key=terraform/${{ matrix.module }}/${{ matrix.environment }}/terraform.tfstate" \
             -backend-config="region=$AWS_REGION"
 
       - name: Terraform Validate
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: terraform validate
 
       - name: Terraform Plan
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform plan \
             -var-file="env/${{ matrix.environment }}.tfvars" \
@@ -162,8 +213,8 @@ jobs:
       - name: Save Plan
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ matrix.environment }}
-          path: ./infrastructure/terraform/vpc/${{ matrix.environment }}.tfplan
+          name: tfplan-${{ matrix.module }}-${{ matrix.environment }}
+          path: ./infrastructure/terraform/${{ matrix.module }}/${{ matrix.environment }}.tfplan
           retention-days: 5
 
       - name: Comment PR
@@ -172,14 +223,14 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const path = './infrastructure/terraform/vpc';
+            const path = './infrastructure/terraform/${{ matrix.module }}';
 
             // Run terraform show to get plan output
             const { execSync } = require('child_process');
             try {
               const planOutput = execSync(`cd ${path} && terraform show -no-color ${{ matrix.environment }}.tfplan`, { encoding: 'utf8' });
 
-              const output = `### Terraform Plan (${{ matrix.environment }})
+              const output = `### Terraform Plan (${{ matrix.module }}/${{ matrix.environment }})
 
               \`\`\`
               ${planOutput}
@@ -188,8 +239,9 @@ jobs:
               <details>
               <summary>Show Plan Details</summary>
 
+              **Module:** ${{ matrix.module }}
               **Environment:** ${{ matrix.environment }}
-              **Workspace:** terraform/vpc/${{ matrix.environment }}
+              **Workspace:** terraform/${{ matrix.module }}/${{ matrix.environment }}
               **Backend:** S3 (${process.env.S3_BUCKET})
 
               </details>`;
@@ -207,11 +259,15 @@ jobs:
   # Progressive Deployment: Dev Environment (Auto-deploy)
   deploy-dev:
     name: 'Deploy to Development'
-    needs: [setup-backend, terraform-plan]
+    needs: [setup-backend, terraform-plan, detect-changes]
     runs-on: ubuntu-latest
     if: |
-      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'dev' && github.event.inputs.action == 'apply')
+      needs.detect-changes.outputs.has-changes == 'true' &&
+      ((github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'dev' && github.event.inputs.action == 'apply'))
+    strategy:
+      matrix:
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
     environment:
       name: dev
 
@@ -234,44 +290,48 @@ jobs:
       - name: Download Plan
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-dev
-          path: ./infrastructure/terraform/vpc/
+          name: tfplan-${{ matrix.module }}-dev
+          path: ./infrastructure/terraform/${{ matrix.module }}/
 
       - name: Terraform Init
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform init \
             -backend-config="bucket=$S3_BUCKET" \
-            -backend-config="key=terraform/vpc/dev/terraform.tfstate" \
+            -backend-config="key=terraform/${{ matrix.module }}/dev/terraform.tfstate" \
             -backend-config="region=$AWS_REGION"
 
       - name: Terraform Apply
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform apply -auto-approve dev.tfplan
 
       - name: Save Outputs
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform output -json > outputs.json
-          echo "📊 Development Terraform Outputs:"
+          echo "📊 Development Terraform Outputs (${{ matrix.module }}):"
           cat outputs.json
 
       - name: Upload Outputs
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-outputs-dev
-          path: ./infrastructure/terraform/vpc/outputs.json
+          name: terraform-outputs-${{ matrix.module }}-dev
+          path: ./infrastructure/terraform/${{ matrix.module }}/outputs.json
           retention-days: 30
 
   # Progressive Deployment: Staging Environment (Manual approval required)
   deploy-staging:
     name: 'Deploy to Staging'
-    needs: [deploy-dev]
+    needs: [deploy-dev, detect-changes]
     runs-on: ubuntu-latest
     if: |
-      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'stg' && github.event.inputs.action == 'apply')
+      needs.detect-changes.outputs.has-changes == 'true' &&
+      ((github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'stg' && github.event.inputs.action == 'apply'))
+    strategy:
+      matrix:
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
     environment:
       name: staging
       url: https://console.aws.amazon.com/vpc/home?region=us-east-1
@@ -295,42 +355,47 @@ jobs:
       - name: Download Plan
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-stg
-          path: ./infrastructure/terraform/vpc/
+          name: tfplan-${{ matrix.module }}-stg
+          path: ./infrastructure/terraform/${{ matrix.module }}/
 
       - name: Terraform Init
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform init \
             -backend-config="bucket=$S3_BUCKET" \
-            -backend-config="key=terraform/vpc/stg/terraform.tfstate" \
+            -backend-config="key=terraform/${{ matrix.module }}/stg/terraform.tfstate" \
             -backend-config="region=$AWS_REGION"
 
       - name: Terraform Apply
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform apply -auto-approve stg.tfplan
 
       - name: Save Outputs
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform output -json > outputs.json
-          echo "📊 Staging Terraform Outputs:"
+          echo "📊 Staging Terraform Outputs (${{ matrix.module }}):"
           cat outputs.json
 
       - name: Upload Outputs
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-outputs-stg
-          path: ./infrastructure/terraform/vpc/outputs.json
+          name: terraform-outputs-${{ matrix.module }}-stg
+          path: ./infrastructure/terraform/${{ matrix.module }}/outputs.json
           retention-days: 30
 
   # Progressive Deployment: Production Environment (Manual approval required)
   deploy-production:
     name: 'Deploy to Production'
-    needs: [deploy-staging]
+    needs: [deploy-staging, detect-changes]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'prd' && github.event.inputs.action == 'apply'
+    if: |
+      needs.detect-changes.outputs.has-changes == 'true' &&
+      github.event_name == 'workflow_dispatch' && github.event.inputs.target_environment == 'prd' && github.event.inputs.action == 'apply'
+    strategy:
+      matrix:
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
     environment:
       name: production
       url: https://console.aws.amazon.com/vpc/home?region=us-east-1
@@ -354,41 +419,46 @@ jobs:
       - name: Download Plan
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-prd
-          path: ./infrastructure/terraform/vpc/
+          name: tfplan-${{ matrix.module }}-prd
+          path: ./infrastructure/terraform/${{ matrix.module }}/
 
       - name: Terraform Init
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform init \
             -backend-config="bucket=$S3_BUCKET" \
-            -backend-config="key=terraform/vpc/prd/terraform.tfstate" \
+            -backend-config="key=terraform/${{ matrix.module }}/prd/terraform.tfstate" \
             -backend-config="region=$AWS_REGION"
 
       - name: Terraform Apply
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform apply -auto-approve prd.tfplan
 
       - name: Save Outputs
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform output -json > outputs.json
-          echo "📊 Production Terraform Outputs:"
+          echo "📊 Production Terraform Outputs (${{ matrix.module }}):"
           cat outputs.json
 
       - name: Upload Outputs
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-outputs-prd
-          path: ./infrastructure/terraform/vpc/outputs.json
+          name: terraform-outputs-${{ matrix.module }}-prd
+          path: ./infrastructure/terraform/${{ matrix.module }}/outputs.json
           retention-days: 30
 
   terraform-destroy:
     name: 'Terraform Destroy'
-    needs: setup-backend
+    needs: [setup-backend, detect-changes]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    if: |
+      needs.detect-changes.outputs.has-changes == 'true' &&
+      github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    strategy:
+      matrix:
+        module: ${{ fromJSON(format('["{0}"]', needs.detect-changes.outputs.changed-modules)) }}
     environment:
       name: ${{ github.event.inputs.target_environment }}-destroy
 
@@ -409,15 +479,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform init \
             -backend-config="bucket=$S3_BUCKET" \
-            -backend-config="key=terraform/vpc/${{ github.event.inputs.target_environment }}/terraform.tfstate" \
+            -backend-config="key=terraform/${{ matrix.module }}/${{ github.event.inputs.target_environment }}/terraform.tfstate" \
             -backend-config="region=$AWS_REGION"
 
       - name: Terraform Destroy
-        working-directory: ./infrastructure/terraform/vpc
+        working-directory: ./infrastructure/terraform/${{ matrix.module }}
         run: |
           terraform destroy -auto-approve \
             -var-file="env/${{ github.event.inputs.target_environment }}.tfvars"
@@ -426,13 +496,16 @@ jobs:
   deployment-summary:
     name: 'Deployment Summary'
     runs-on: ubuntu-latest
-    needs: [deploy-dev, deploy-staging, deploy-production]
-    if: always() && (needs.deploy-dev.result == 'success' || needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success')
+    needs: [deploy-dev, deploy-staging, deploy-production, detect-changes]
+    if: always() && needs.detect-changes.outputs.has-changes == 'true'
 
     steps:
       - name: Generate Deployment Summary
         run: |
           echo "## 🚀 Terraform Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Changed Modules" >> $GITHUB_STEP_SUMMARY
+          echo "**Modules:** ${{ needs.detect-changes.outputs.changed-modules }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Environment Status" >> $GITHUB_STEP_SUMMARY
           echo "| Environment | Status | Result |" >> $GITHUB_STEP_SUMMARY
@@ -442,7 +515,7 @@ jobs:
           echo "| Production | ${{ needs.deploy-production.result == 'success' && '✅ Deployed' || needs.deploy-production.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
-          echo "- [AWS VPC Console](https://console.aws.amazon.com/vpc/home?region=us-east-1)" >> $GITHUB_STEP_SUMMARY
+          echo "- [AWS Console](https://console.aws.amazon.com/vpc/home?region=us-east-1)" >> $GITHUB_STEP_SUMMARY
           echo "- [S3 Terraform State](https://s3.console.aws.amazon.com/s3/buckets/github-actions-kargo-argocd)" >> $GITHUB_STEP_SUMMARY
           echo "- [Terraform Outputs Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

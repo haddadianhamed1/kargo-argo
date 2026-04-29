@@ -18,16 +18,37 @@ def check_terraform_available():
         return False
 
 def find_terraform_dirs():
-    """Find all directories containing .tf files."""
+    """Find directories containing changed .tf files."""
     terraform_dirs = set()
 
-    # Look for .tf files in infrastructure directory
-    infrastructure_path = Path('infrastructure')
-    if infrastructure_path.exists():
-        for tf_file in infrastructure_path.rglob('*.tf'):
-            # Skip .terraform directories
-            if '.terraform' not in str(tf_file.parent):
-                terraform_dirs.add(tf_file.parent)
+    try:
+        # Get list of staged files (files about to be committed)
+        result = subprocess.run(['git', 'diff', '--cached', '--name-only'],
+                              capture_output=True, text=True, check=True)
+
+        staged_files = result.stdout.strip().split('\n')
+
+        # If no staged files, check all modified files
+        if not staged_files or staged_files == ['']:
+            result = subprocess.run(['git', 'diff', '--name-only'],
+                                  capture_output=True, text=True, check=True)
+            staged_files = result.stdout.strip().split('\n')
+
+        # Find directories containing staged .tf files
+        for file_path in staged_files:
+            if file_path.endswith('.tf') and 'infrastructure' in file_path:
+                tf_path = Path(file_path)
+                if tf_path.exists() and '.terraform' not in str(tf_path.parent):
+                    terraform_dirs.add(tf_path.parent)
+
+    except subprocess.CalledProcessError:
+        # Fallback to scanning all if git commands fail
+        print("⚠️  Git commands failed, falling back to scan all directories")
+        infrastructure_path = Path('infrastructure')
+        if infrastructure_path.exists():
+            for tf_file in infrastructure_path.rglob('*.tf'):
+                if '.terraform' not in str(tf_file.parent):
+                    terraform_dirs.add(tf_file.parent)
 
     return terraform_dirs
 
@@ -114,7 +135,13 @@ def main():
         print("ℹ️  No Terraform files found. Skipping validation.")
         return 0
 
-    print(f"📁 Found {len(terraform_dirs)} Terraform directories")
+    if not terraform_dirs:
+        print("ℹ️  No Terraform files changed. Skipping validation.")
+        return 0
+
+    print(f"📁 Found {len(terraform_dirs)} Terraform directories with changes:")
+    for tf_dir in sorted(terraform_dirs):
+        print(f"   📂 {tf_dir}")
 
     all_passed = True
 
