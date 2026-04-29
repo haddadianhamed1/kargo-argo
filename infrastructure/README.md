@@ -45,17 +45,24 @@ infrastructure/
 
 #### Option 1: GitHub Actions (Recommended)
 
-**Automated deployment with S3 backend:**
+**Progressive deployment with GitHub Environments:**
 
-1. **Create AWS IAM User** (see `GITHUB_ACTIONS_SETUP.md`)
+🔄 **Deployment Flow**: Dev (auto) → Staging (approval) → Production (approval)
+
+1. **Setup GitHub Environments** (see `.github/ENVIRONMENTS.md`)
+   - Configure approval rules for staging/production
+   - Add reviewers and protection settings
+
 2. **Add GitHub Secrets**: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
-3. **Push to trigger deployment**:
-   ```bash
-   git push origin main  # Auto-deploys to dev
-   ```
-4. **Manual deployment**: Use GitHub Actions tab for staging
 
-**Benefits**: Automated, secure, multi-environment, state management
+3. **Automatic deployment**:
+   ```bash
+   git push origin main  # Auto-deploys to dev, awaits approval for staging/prod
+   ```
+
+4. **Manual deployment**: Use GitHub Actions → "Run workflow"
+
+**Benefits**: Progressive deployment, approval gates, audit trail, single branch strategy
 
 #### Option 2: Local Deployment
 
@@ -66,8 +73,7 @@ infrastructure/
 terraform init \
   -backend-config="bucket=github-actions-kargo-argocd" \
   -backend-config="key=terraform/vpc/dev/terraform.tfstate" \
-  -backend-config="region=us-east-1" \
-  -backend-config="dynamodb_table=terraform-state-lock"
+  -backend-config="region=us-east-1"
 ```
 
 ### 2. Plan Infrastructure (Development)
@@ -98,12 +104,21 @@ terraform apply -var-file="env/stg.tfvars"
 - **NAT Gateway**: Single (cost-optimized)
 - **VPC Endpoints**: Disabled (cost-optimized)
 - **Auto-shutdown**: Enabled
+- **Deployment**: Automatic on push to main
 
 ### Staging (`stg.tfvars`)
 - **VPC CIDR**: `10.20.0.0/16`
 - **Subnets**: 2 public, 2 private (Multi-AZ)
 - **NAT Gateway**: Multiple (high availability)
 - **VPC Endpoints**: Enabled
+- **Deployment**: Manual approval required (1-2 reviewers)
+
+### Production (`prd.tfvars`)
+- **VPC CIDR**: `10.30.0.0/16`
+- **Subnets**: 3 public, 3 private (Full Multi-AZ)
+- **NAT Gateway**: Multiple (maximum high availability)
+- **VPC Endpoints**: Enabled (cost optimization)
+- **Deployment**: Manual approval required (2-3 reviewers)
 
 ## 📊 Key Outputs
 
