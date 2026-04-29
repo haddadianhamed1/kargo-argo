@@ -1,5 +1,5 @@
 # Configure the AWS Provider
-# Trigger deployment: 2026-04-28
+# Ready to deploy EKS cluster infrastructure
 provider "aws" {
   region = var.aws_region
 
