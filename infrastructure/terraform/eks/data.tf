@@ -70,15 +70,23 @@ locals {
   # Node group subnet IDs (use private subnets for worker nodes)
   node_group_subnet_ids = local.private_subnet_ids
 
-  # Common tags for all resources
-  common_tags = merge(
+  # Provider-safe tags (no data source dependencies)
+  provider_tags = merge(
     module.label.tags,
     {
+      "Environment" = var.environment
+      "Project"     = var.project_name
+      "ManagedBy"   = "terraform"
+      "Owner"       = var.owner
+      "Region"      = var.aws_region
+    }
+  )
+
+  # Common tags for all resources (includes data sources)
+  common_tags = merge(
+    local.provider_tags,
+    {
       "kubernetes.io/cluster/${local.cluster_name}" = "owned"
-      "Environment"                                 = var.environment
-      "Project"                                     = var.project_name
-      "ManagedBy"                                   = "terraform"
-      "Owner"                                       = var.owner
       "AccountId"                                   = local.account_id
       "Region"                                      = local.region
     }

@@ -1,9 +1,10 @@
 # Configure the AWS Provider
+# Trigger deployment: 2026-04-28
 provider "aws" {
   region = var.aws_region
 
   default_tags {
-    tags = local.common_tags
+    tags = local.provider_tags
   }
 }
 
@@ -104,7 +105,7 @@ module "eks_node_groups" {
   # Cluster configuration
   cluster_name       = module.eks_cluster.eks_cluster_id
   subnet_ids         = local.node_group_subnet_ids
-  kubernetes_version = var.kubernetes_version
+  kubernetes_version = null # Let node group inherit from cluster
 
   # Node group configuration
   instance_types = each.value.instance_types

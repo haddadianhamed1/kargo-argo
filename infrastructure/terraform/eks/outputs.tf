@@ -51,13 +51,8 @@ output "cluster_version" {
 }
 
 output "cluster_platform_version" {
-  description = "The platform version of the EKS cluster"
-  value       = module.eks_cluster.eks_cluster_platform_version
-}
-
-output "cluster_status" {
-  description = "The status of the EKS cluster"
-  value       = module.eks_cluster.eks_cluster_status
+  description = "The Kubernetes version of the EKS cluster"
+  value       = module.eks_cluster.eks_cluster_version
 }
 
 # Cluster Security
@@ -73,8 +68,8 @@ output "cluster_security_group_id" {
 }
 
 output "cluster_primary_security_group_id" {
-  description = "ID of the cluster primary security group"
-  value       = module.eks_cluster.eks_cluster_primary_security_group_id
+  description = "ID of the cluster managed security group"
+  value       = module.eks_cluster.eks_cluster_managed_security_group_id
 }
 
 output "worker_security_group_id" {
@@ -98,13 +93,11 @@ output "node_groups" {
   description = "Map of node group attributes"
   value = {
     for k, v in module.eks_node_groups : k => {
-      arn            = v.eks_node_group_arn
-      id             = v.eks_node_group_id
-      status         = v.eks_node_group_status
-      capacity_type  = v.eks_node_group_capacity_type
-      instance_types = v.eks_node_group_instance_types
-      ami_type       = v.eks_node_group_ami_type
-      node_role_arn  = v.eks_node_group_role_arn
+      arn                = v.eks_node_group_arn
+      id                 = v.eks_node_group_id
+      status             = v.eks_node_group_status
+      node_role_arn      = v.eks_node_group_role_arn
+      launch_template_id = v.eks_node_group_launch_template_id
     }
   }
 }
