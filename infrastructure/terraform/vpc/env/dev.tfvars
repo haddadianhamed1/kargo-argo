@@ -14,9 +14,9 @@ owner        = "Development Team"
 # VPC Configuration
 vpc_cidr = "10.10.0.0/16"
 
-# Subnet Configuration
-public_subnet_count  = 1
-private_subnet_count = 1
+# Subnet Configuration - EKS requires at least 2 AZs
+public_subnet_count  = 2
+private_subnet_count = 2
 subnet_cidr_newbits  = 8
 
 # Kubernetes Configuration
