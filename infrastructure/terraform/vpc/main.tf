@@ -101,11 +101,14 @@ module "subnets" {
   nat_gateway_enabled     = var.enable_nat_gateway
   nat_instance_enabled    = false
 
-  tags = merge(
-    local.common_tags,
-    local.kubernetes_public_tags,
-    local.kubernetes_private_tags
-  )
+  # Base tags for all subnets
+  tags = local.common_tags
+
+  # Kubernetes-specific tags for public subnets (load balancers)
+  public_subnets_additional_tags = local.kubernetes_public_tags
+
+  # Kubernetes-specific tags for private subnets (internal load balancers)
+  private_subnets_additional_tags = local.kubernetes_private_tags
 }
 
 # Security Group for Kubernetes cluster
