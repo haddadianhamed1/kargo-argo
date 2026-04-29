@@ -169,6 +169,7 @@ jobs:
     name: 'Terraform Plan'
     needs: [setup-backend, detect-changes]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: needs.detect-changes.outputs.has-changes == 'true'
     strategy:
       matrix:
