@@ -23,6 +23,11 @@ def get_test2():
     return "test2"
 
 
+@app.get("/daniel")
+def get_daniel():
+    return "daniel"
+
+
 if __name__ == "__main__":
     import uvicorn
 
