@@ -1,0 +1,9 @@
+# Dev-specific patches for LiteLLM
+apiVersion: v1
+kind: Secret
+metadata:
+  name: litellm-master-key
+  namespace: litellm
+stringData:
+  # Override with dev-specific master key
+  master-key: "Skye12luna3$"

@@ -7,12 +7,29 @@ This repository contains a FastAPI application and related tooling for Kargo Arg
 ```
 kargo-argocd/
 ├── applications/              # FastAPI application directory
-│   ├── main.py               # Main FastAPI application with HIV endpoints
+│   ├── main.py               # Main FastAPI application with 4 endpoints
 │   ├── requirements.txt      # Python dependencies
 │   ├── Dockerfile            # Container build configuration
 │   ├── .dockerignore         # Docker build exclusions
 │   ├── README.md             # Application-specific documentation
 │   └── CLAUDE.md             # Application development context
+├── infrastructure/           # Infrastructure as Code
+│   ├── terraform/           # Terraform configurations
+│   │   └── vpc/             # VPC networking setup
+│   │       ├── env/         # Environment-specific configs
+│   │       │   ├── dev.tfvars  # Development settings
+│   │       │   └── stg.tfvars  # Staging settings
+│   │       └── *.tf         # VPC module files
+│   └── cluster/             # EKS cluster configurations
+│       ├── kargo-dev-eks.yaml   # Development cluster
+│       └── kargo-stg-eks.yaml   # Staging cluster
+├── k8s/                      # Kubernetes manifests
+│   ├── app/                 # Application deployments
+│   │   ├── base/           # Base Kustomize manifests
+│   │   └── overlays/       # Environment overlays (dev/stg)
+│   ├── argocd/             # ArgoCD Helm configuration
+│   ├── istio/              # Istio service mesh setup
+│   └── kargo/              # Kargo GitOps pipeline
 ├── scripts/                  # Custom validation scripts
 │   ├── check_branch_name.py  # Branch naming validator
 │   └── check_commit_msg.py   # Commit message validator
@@ -27,10 +44,12 @@ kargo-argocd/
 
 ## Applications Directory
 
-The `applications/` directory contains a FastAPI web service with two endpoints:
+The `applications/` directory contains a FastAPI web service with four endpoints:
 
 - **GET /hiv1** - Returns "hiv1"
 - **GET /hiv2** - Returns "hiv2"
+- **GET /hamed** - Returns "hamed"
+- **GET /test2** - Returns "test2"
 
 ### Running the FastAPI Application
 
@@ -97,6 +116,223 @@ git push origin feat/DEMO-127-user-dashboard
 # PR Description: "Closes DEMO-127 - Implements user dashboard with..."
 ```
 
+## Complete GitOps Pipeline
+
+This repository implements a complete GitOps pipeline with automated promotion between environments using Kargo, ArgoCD, and Kubernetes.
+
+### Infrastructure Overview
+
+**🏗️ Infrastructure Stack:**
+- **AWS EKS**: Managed Kubernetes clusters (dev/staging)
+- **Terraform**: Infrastructure as Code for VPC, subnets, security groups
+- **Istio**: Service mesh for traffic management and external access
+- **ArgoCD**: GitOps continuous deployment
+- **Kargo**: GitOps promotion engine for environment progression
+- **ECR**: Container registry for application images
+
+### Environment Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     GitOps Pipeline                            │
+├─────────────────────────────────────────────────────────────────┤
+│  Git → ECR → Kargo Warehouse → Dev Stage → Staging Stage       │
+│   ↓      ↓         ↓             ↓           ↓                 │
+│ Code → Image → Detection → Auto-Deploy → Manual Promotion     │
+└─────────────────────────────────────────────────────────────────┘
+
+Environment Separation:
+┌──────────────────┐    ┌──────────────────┐
+│   Dev Cluster    │    │ Staging Cluster  │
+│ kargo-dev-eks    │    │ kargo-stg-eks    │
+│ 10.10.0.0/16     │    │ 10.20.0.0/16     │
+│                  │    │                  │
+│ Auto-Deploy ✓    │    │ Manual Promote   │
+│ Single AZ        │    │ Multi-AZ HA      │
+│ Cost Optimized   │    │ Production-Like  │
+└──────────────────┘    └──────────────────┘
+```
+
+### GitOps Services Access
+
+**🌐 External Access (via Istio + ALB):**
+- **FastAPI Dev**: https://app-dev.hamedstock.com
+- **ArgoCD**: https://[ALB-URL] (LoadBalancer)
+- **Kargo**: https://kargo-dev.hamedstock.com
+
+**🔐 Access Restrictions:**
+- IP restriction: `24.130.139.84/32`
+- HTTPS termination at ALB
+- Internal service mesh routing
+
+### Kargo Promotion Pipeline
+
+**📦 Promotion Flow:**
+```
+1. Code Push → GitHub
+2. Docker Build → ECR Registry
+3. Kargo Warehouse → Image Detection
+4. Dev Stage → Automatic Deployment (ArgoCD)
+5. Manual Promotion → Staging Stage (via Kargo UI)
+6. Staging Deployment → ArgoCD Updates
+```
+
+**🎯 Kargo Configuration:**
+- **Project**: `kargo-argocd`
+- **Warehouse**: Tracks ECR images `992382364873.dkr.ecr.us-east-1.amazonaws.com/kargo-argocd`
+- **Dev Stage**: Auto-deploys from main branch
+- **Staging Stage**: Manual promotion for safety
+- **UI Access**: https://kargo-dev.hamedstock.com
+
+### ArgoCD Integration
+
+**📱 ArgoCD Applications:**
+- `fastapi-app-dev` → Dev cluster deployment
+- `fastapi-app-staging` → Staging cluster deployment
+
+**🔄 Application Sources:**
+- **Git Repository**: https://github.com/hamedhaddadian/kargo-argocd
+- **Manifests**: `k8s/app/overlays/{dev,stg}/`
+- **Image Updates**: Automated via Kargo promotions
+
+### Infrastructure Components
+
+**🏗️ Terraform Modules:**
+- `infrastructure/terraform/vpc/` - VPC, subnets, security groups
+- `infrastructure/cluster/` - EKS cluster configurations
+- Environment-specific tfvars for dev/staging
+
+**☸️ Kubernetes Resources:**
+- `k8s/app/` - Application manifests with Kustomize overlays
+- `k8s/istio/` - Istio configurations and ingress
+- `k8s/argocd/` - ArgoCD Helm configurations
+- `k8s/kargo/` - Kargo installation and pipeline configs
+
+**🚀 Deployment Scripts:**
+- `k8s/istio/deploy-istio.sh` - Istio installation
+- `k8s/argocd/deploy.sh` - ArgoCD deployment
+- `k8s/kargo/install-kargo.sh` - Kargo + dependencies
+
+## Complete Development Workflow
+
+### 🔄 End-to-End Process
+
+**1. Create Jira Ticket**
+```bash
+# Via Claude Code MCP integration or Jira UI
+# Creates: DEMO-XXX with requirements and acceptance criteria
+```
+
+**2. Development Setup**
+```bash
+# Pull latest main
+git checkout main
+git pull origin main
+
+# Create feature branch (lowercase, include ticket)
+git checkout -b feature/demo-123-add-new-endpoint
+```
+
+**3. Code Implementation**
+```bash
+# Make changes following acceptance criteria
+# Update documentation as needed
+# Test locally
+
+# Commit with conventional format + ticket reference
+git add .
+git commit -m "feat(api): add new endpoint (DEMO-123)"
+```
+
+**4. Push and Validate**
+```bash
+# Push branch
+git push -u origin feature/demo-123-add-new-endpoint
+
+# Pre-commit hooks validate:
+# - Branch name format
+# - Commit message format
+# - Code formatting (Black, Flake8)
+# - YAML syntax
+```
+
+**5. Pull Request Process**
+```bash
+# Create PR targeting main branch
+# Claude Code Review automatically runs
+# Title: "feat(api): add new endpoint (DEMO-123)"
+# Description: Include "Closes DEMO-123"
+```
+
+**6. Review and Merge**
+```bash
+# Claude reviews for:
+# - Security issues
+# - Bugs and code quality
+# - Kubernetes/Terraform patterns
+# - Deployment safety
+
+# After approval and merge to main:
+# - New Docker image builds
+# - Pushes to ECR registry
+```
+
+**7. GitOps Deployment**
+```bash
+# Kargo automatically:
+# 1. Detects new ECR image
+# 2. Updates dev ArgoCD application
+# 3. Deploys to dev cluster
+# 4. Available at: https://app-dev.hamedstock.com
+
+# Manual promotion to staging:
+# 1. Access Kargo UI: https://kargo-dev.hamedstock.com
+# 2. View dev stage status
+# 3. Click "Promote" to staging
+# 4. Deploys to staging cluster
+```
+
+**8. Jira Completion**
+```bash
+# Update Jira ticket:
+# - Mark as "Done"
+# - Add implementation details
+# - Reference deployed endpoints
+```
+
+### 🛠️ Development Tools
+
+**Required Setup:**
+```bash
+# Pre-commit hooks
+pip install pre-commit
+pre-commit install
+
+# Terraform (for infrastructure)
+tfswitch
+
+# Kubernetes tools
+kubectl
+eksctl
+helm
+
+# AWS CLI
+aws configure
+```
+
+**Testing Locally:**
+```bash
+# FastAPI application
+cd applications
+pip install -r requirements.txt
+python main.py
+# Access: http://localhost:8000
+
+# Docker testing
+docker build -t fastapi-app .
+docker run -p 8000:8000 fastapi-app
+```
+
 ## Repository Configuration
 
 The repository includes development workflow configuration with pre-commit hooks, validation scripts, GitHub integration, and Jira tracking.
@@ -119,13 +355,19 @@ pre-commit install
 
 **Step 2: Branch Naming with Ticket Number**
 - Always use the Jira ticket number in branch names for traceability
-- Format: `{type}/{ticket-number}-{brief-description}`
+- Format: `{type}/{ticket-number}-{brief-description}` (ALL LOWERCASE)
 
-Examples:
-- `feat/DEMO-123-add-user-authentication` - New features
-- `bugfix/DEMO-124-fix-login-redirect` - Bug fixes
-- `hotfix/DEMO-125-security-patch` - Urgent fixes
-- `chore/DEMO-126-update-dependencies` - Maintenance tasks
+**Required Patterns:**
+- `feature/demo-123-add-user-authentication` - New features
+- `bugfix/demo-124-fix-login-redirect` - Bug fixes
+- `hotfix/demo-125-security-patch` - Urgent fixes
+- `release/v1.2.0` - Release branches
+
+**Examples:**
+- `feature/demo-123-add-user-authentication`
+- `bugfix/demo-124-fix-login-redirect`
+- `hotfix/demo-125-security-patch`
+- `chore/demo-126-update-dependencies`
 
 **Step 3: Link Code to Requirements**
 - Branch name automatically links commits to Jira ticket

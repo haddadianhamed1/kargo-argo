@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: litellm
+
+resources:
+  - namespace.yaml
+  - litellm-master-key.yaml
+  - litellm-db-secret.yaml
+  - litellm-env-secret.yaml
+
+# Helm chart will be managed by ArgoCD Application
