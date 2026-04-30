@@ -23,11 +23,6 @@ def get_test2():
     return "test2"
 
 
-@app.get("/interviewtest")
-def get_interviewtest():
-    return "interviewtest"
-
-
 if __name__ == "__main__":
     import uvicorn
 
