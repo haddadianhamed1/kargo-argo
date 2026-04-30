@@ -15,4 +15,4 @@ commonLabels:
 images:
 - name: fastapi-app
   newName: 992382364873.dkr.ecr.us-east-1.amazonaws.com/kargo-argocd
-  newTag: 6bcfaa61fab98858d6da03412b93681382ec4410
+  newTag: 18163cf901c3935eb1546a3960c5a856bf9659b4
