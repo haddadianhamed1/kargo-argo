@@ -1,0 +1,112 @@
+# LiteLLM Helm values for Bedrock + RDS setup
+replicaCount: 2
+
+# Use the database-optimized image
+image:
+  repository: ghcr.io/berriai/litellm-database
+  tag: "main-stable"
+  pullPolicy: Always
+
+# Service Account with IRSA annotations for Bedrock access
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::992382364873:role/dev-litellm-bedrock-role"
+  name: "litellm-sa"
+
+# Environment variables for AWS Bedrock
+envVars:
+  AWS_REGION: "us-east-1"
+  AWS_DEFAULT_REGION: "us-east-1"
+
+# Database configuration for existing RDS
+db:
+  useExisting: true
+  # Update this with your RDS connection details
+  url: "postgresql://$(DATABASE_USERNAME):$(DATABASE_PASSWORD)@$(DATABASE_HOST)/$(DATABASE_NAME)"
+  secret:
+    name: "litellm-db-secret"  # You'll need to create this secret
+    usernameKey: "username"
+    passwordKey: "password"
+    endpointKey: "host"
+  deployStandalone: false  # Don't deploy local postgres
+
+# LiteLLM Proxy Configuration
+proxy_config:
+  model_list:
+    # AWS Bedrock Claude model
+    - model_name: claude-haiku
+      litellm_params:
+        model: bedrock/us.anthropic.claude-3-haiku-20240307-v1:0
+        aws_region_name: us-east-1
+        # No AWS credentials needed - using IRSA
+
+    # You can add more Bedrock models here
+    - model_name: claude-sonnet
+      litellm_params:
+        model: bedrock/anthropic.claude-3-sonnet-20240229-v1:0
+        aws_region_name: us-east-1
+
+  general_settings:
+    master_key: os.environ/PROXY_MASTER_KEY
+    database_url: os.environ/DATABASE_URL
+
+    # Optional: Enable logging
+    litellm_settings:
+      telemetry: false
+
+# Environment secrets (you'll need to create these)
+environmentSecrets:
+  - litellm-secrets  # Contains PROXY_MASTER_KEY and DATABASE_URL
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 4000
+
+# Resource requests for production
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2
+    memory: 4Gi
+
+# Health check configuration
+livenessProbe:
+  path: /health/liveliness
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  path: /health/readiness
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+startupProbe:
+  path: /health/readiness
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+
+# Enable HPA for auto-scaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# Migration job for database setup
+migrationJob:
+  enabled: true
+  hooks:
+    argocd:
+      enabled: true  # Good for ArgoCD integration
+    helm:
+      enabled: false

@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: litellm
+
+bases:
+  - ../../base
+
+# Dev-specific resources
+resources:
+  - gateway.yaml
+  - virtualservice.yaml
+
+# Dev-specific patches
+patchesStrategicMerge:
+  - litellm-master-key-patch.yaml
+  - litellm-env-secret-patch.yaml
+
+# Dev-specific labels
+commonLabels:
+  environment: dev
+  cluster: kargo-dev-eks

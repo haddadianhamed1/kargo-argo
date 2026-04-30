@@ -1,0 +1,61 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/berriai/litellm-database
+  tag: ""
+  pullPolicy: Always
+
+serviceAccount:
+  create: true
+  name: litellm
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::992382364873:role/dev-litellm-bedrock-role
+
+service:
+  type: ClusterIP
+  port: 4000
+
+ingress:
+  enabled: false
+
+masterkeySecretName: litellm-master-key
+masterkeySecretKey: master-key
+
+environmentSecrets:
+  - litellm-env-secret
+
+envVars:
+  AWS_REGION_NAME: us-east-1
+
+db:
+  useExisting: true
+  deployStandalone: false
+  endpoint: litellm1-instance-1.cmru28caiqsp.us-east-1.rds.amazonaws.com:5432
+  database: postgres
+  url: postgresql://$(DATABASE_USERNAME):$(DATABASE_PASSWORD)@$(DATABASE_HOST)/$(DATABASE_NAME)?sslmode=require
+  secret:
+    name: litellm-db-secret
+    usernameKey: username
+    passwordKey: password
+    endpointKey: host
+
+proxy_config:
+  model_list:
+    - model_name: deepseek-r1
+      litellm_params:
+        model: bedrock/us.deepseek.r1-v1:0
+        aws_region_name: os.environ/AWS_REGION_NAME
+
+  general_settings:
+    master_key: os.environ/PROXY_MASTER_KEY
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+migrationJob:
+  enabled: true
