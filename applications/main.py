@@ -28,6 +28,16 @@ def get_daniel():
     return "daniel"
 
 
+@app.get("/litellmclaude")
+def get_litellmclaude():
+    return True
+
+
+@app.get("/demo")
+def get_demo():
+    return True
+
+
 if __name__ == "__main__":
     import uvicorn
 
