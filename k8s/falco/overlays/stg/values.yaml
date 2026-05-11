@@ -1,0 +1,108 @@
+# Falco Configuration for Staging Environment
+
+# Falco core configuration
+falco:
+  # Enable gRPC for falcosidekick integration
+  grpc:
+    enabled: true
+    bind_address: "0.0.0.0:5060"
+    threadiness: 0
+
+  # Enable JSON output for better parsing
+  json_output: true
+  json_include_output_property: true
+
+  # Production-ready rule settings
+  rules_files:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/falco_rules.local.yaml
+    - /etc/falco/k8s_audit_rules.yaml
+    - /etc/falco/rules.d
+
+  # Resource limits for staging (production-like)
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
+    requests:
+      cpu: 200m
+      memory: 1024Mi
+
+# Falcosidekick configuration - enabled as requested
+falcosidekick:
+  enabled: true
+
+  # Web UI configuration - enabled as requested
+  webui:
+    enabled: true
+    redis:
+      storageEnabled: true
+      persistentVolume:
+        enabled: true
+        size: 1Gi
+
+    # Service configuration for staging access
+    service:
+      type: ClusterIP
+      port: 2802
+
+    # Production-like resource limits
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1024Mi
+      requests:
+        cpu: 200m
+        memory: 512Mi
+
+  # Falcosidekick core settings
+  config:
+    existingSecret: ""
+
+    # Alert outputs - configure for staging notifications
+    slack:
+      webhookurl: ""
+      channel: "#falco-staging"
+      username: "falco-staging"
+      iconemoji: ":warning:"
+
+    # Staging logging (less verbose than dev)
+    debug: false
+
+  # Production-like resource limits
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+
+# Driver configuration
+driver:
+  enabled: true
+  kind: ebpf
+
+# Service Monitor for Prometheus (enabled in staging)
+serviceMonitor:
+  enabled: true
+
+# Pod Security Standards
+podSecurityPolicy:
+  create: false
+
+# Staging-specific node placement
+tolerations: []
+nodeSelector: {}
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - falco
+        topologyKey: kubernetes.io/hostname

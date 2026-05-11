@@ -1,0 +1,94 @@
+# Falco Configuration for Development Environment
+
+# Falco core configuration
+falco:
+  # Enable gRPC for falcosidekick integration
+  grpc:
+    enabled: true
+    bind_address: "0.0.0.0:5060"
+    threadiness: 0
+
+  # Enable JSON output for better parsing
+  json_output: true
+  json_include_output_property: true
+
+  # Development-specific rule settings
+  rules_files:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/falco_rules.local.yaml
+    - /etc/falco/k8s_audit_rules.yaml
+    - /etc/falco/rules.d
+
+  # Resource limits for development
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 100m
+      memory: 512Mi
+
+# Falcosidekick configuration - enabled as requested
+falcosidekick:
+  enabled: true
+
+  # Web UI configuration - enabled as requested
+  webui:
+    enabled: true
+    redis:
+      storageEnabled: true
+
+    # Service configuration for development access
+    service:
+      type: ClusterIP
+      port: 2802
+
+    # Resource limits for development
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  # Falcosidekick core settings
+  config:
+    existingSecret: ""
+
+    # Alert outputs - configure as needed
+    slack:
+      webhookurl: ""
+      channel: "#falco-dev"
+      username: "falco"
+      iconemoji: ":warning:"
+
+    # Development logging
+    debug: true
+
+  # Resource limits for development
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Driver configuration
+driver:
+  enabled: true
+  kind: ebpf
+
+# Service Monitor for Prometheus (if available)
+serviceMonitor:
+  enabled: false
+
+# Pod Security Standards
+podSecurityPolicy:
+  create: false
+
+# Development-friendly settings
+tolerations: []
+nodeSelector: {}
+affinity: {}
