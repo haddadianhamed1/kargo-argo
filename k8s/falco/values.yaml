@@ -1,0 +1,95 @@
+# Falco Base Configuration
+# This file contains the core Falco configuration with Falcosidekick and Web UI enabled
+
+# Falco core configuration
+falco:
+  # Enable gRPC for falcosidekick integration
+  grpc:
+    enabled: true
+    bind_address: "0.0.0.0:5060"
+    threadiness: 0
+
+  # Enable JSON output for better parsing
+  json_output: true
+  json_include_output_property: true
+
+  # Default rule files
+  rules_files:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/falco_rules.local.yaml
+    - /etc/falco/k8s_audit_rules.yaml
+    - /etc/falco/rules.d
+
+  # Default resource limits
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 100m
+      memory: 512Mi
+
+# Falcosidekick configuration - ENABLED as requested
+falcosidekick:
+  enabled: true
+
+  # Web UI configuration - ENABLED as requested
+  webui:
+    enabled: true
+    redis:
+      storageEnabled: true
+
+    # Default service configuration
+    service:
+      type: ClusterIP
+      port: 2802
+
+    # Default resource limits
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  # Falcosidekick core settings
+  config:
+    existingSecret: ""
+
+    # Default alert outputs (configure as needed)
+    slack:
+      webhookurl: ""
+      channel: "#falco-alerts"
+      username: "falco"
+      iconemoji: ":warning:"
+
+    # Default logging level
+    debug: false
+
+  # Default resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Driver configuration
+driver:
+  enabled: true
+  kind: ebpf
+
+# Service Monitor for Prometheus
+serviceMonitor:
+  enabled: false
+
+# Pod Security Standards
+podSecurityPolicy:
+  create: false
+
+# Default placement settings
+tolerations: []
+nodeSelector: {}
+affinity: {}
